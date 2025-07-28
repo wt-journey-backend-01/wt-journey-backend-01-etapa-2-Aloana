@@ -7,6 +7,6 @@ router.get('/:id', casosController.getCasoById);
 router.post('/', casosController.createCaso);
 router.put('/:id', casosController.updateCaso);
 router.patch('/:id', casosController.partialUpdateCaso);
-router.delete('/:id', casosController.deleteCaso);
+router.delete('/:id', casosController.removeCaso);
 
 module.exports = router;
