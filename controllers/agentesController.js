@@ -1,5 +1,6 @@
 const agentesRepository = require("../repositories/agentesRepository");
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
+const moment = require('moment');
 
 function getAllAgentes(req, res) {
   console.log('✅ Rota GET /agentes acessada');
@@ -28,6 +29,11 @@ function createAgente(req, res) {
     if (!newAgente.nome || !newAgente.dataDeIncorporacao || !newAgente.cargo) {
         return res.status(400).send({ message: "Dados do agente incompletos" });
     }
+
+    if (!moment(newAgente.dataDeIncorporacao, 'YYYY-MM-DD', true).isValid()) {
+        return res.status(400).send({ message: "Data de incorporação inválida" });
+    }
+
     newAgente.id = uuidv4();
     agentesRepository.add(newAgente);
     res.status(201).json(newAgente);
@@ -41,7 +47,11 @@ function updateAgente(req, res) {
     if (!updatedAgente.nome || !updatedAgente.dataDeIncorporacao || !updatedAgente.cargo) {
         return res.status(400).send({ message: "Dados do agente incompletos" });
     }
-    
+
+    if (!moment(updatedAgente.dataDeIncorporacao, 'YYYY-MM-DD', true).isValid()) {
+        return res.status(400).send({ message: "Data de incorporação inválida" });
+    }
+
     if (index !== -1) {
         updatedAgente.id = id;
         agentesRepository.update(index, updatedAgente);
@@ -54,6 +64,7 @@ function updateAgente(req, res) {
 function partialUpdateAgente(req, res) {
     const id = req.params.id;
     const updates = req.body;
+    delete updates.id;
     const agente = agentesRepository.findAll().find(a => a.id === id);
     if (agente) {
         Object.assign(agente, updates);

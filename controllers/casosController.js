@@ -23,14 +23,14 @@ function getCasoById(req, res) {
 }
 function createCaso(req, res) {
     const newCaso = req.body;
-    const agenteExiste = agentesRepository.findAll().some(a => a.id === newCaso.agente_id);
-    
-    if (!agenteExiste) {
-        return res.status(404).send({ message: "Agente responsável não encontrado" });
-    }
 
     if (!newCaso.titulo || !newCaso.descricao || !newCaso.status || !newCaso.agente_id) {
         return res.status(400).send({ message: "Dados do caso incompletos" });
+    }
+
+    const agenteExiste = agentesRepository.findAll().some(a => a.id === newCaso.agente_id);
+    if (!agenteExiste) {
+        return res.status(404).send({ message: "Agente responsável não encontrado" });
     }
     newCaso.id = uuidv4();
     casosRepository.add(newCaso);
