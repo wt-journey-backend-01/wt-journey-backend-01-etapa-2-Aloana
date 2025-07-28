@@ -59,6 +59,22 @@ const agentes = [
 function findAll() {
     return agentes
 }
+
+function add(agente) {
+    agentes.push(agente);
+}
+
+function update(index, agenteAtualizado) {
+    agentes[index] = agenteAtualizado;
+}
+
+function remove(index) {
+    agentes.splice(index, 1);
+}
+
 module.exports = {
-    findAll
+    findAll,
+    add,
+    update,
+    remove
 }

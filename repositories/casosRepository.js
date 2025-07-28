@@ -75,6 +75,22 @@ const casos = [
 function findAll() {
     return casos
 }
+
+function add(caso) {
+    casos.push(caso);
+}
+
+function update(index, casoAtualizado) {
+    casos[index] = casoAtualizado;
+}
+
+function remove(index) {
+    casos.splice(index, 1);
+}
+
 module.exports = {
-    findAll
+    findAll,
+    add,
+    update,
+    remove
 }
