@@ -3,18 +3,43 @@ const { v4: uuidv4, validate: uuidValidate } = require('uuid');
 const moment = require('moment');
 
 function getAllAgentes(req, res) {
-  console.log('✅ Rota GET /agentes acessada');
-  const agentes = agentesRepository.findAll();
-  res.json(agentes);
+    let agentes = agentesRepository.findAll();
+
+    const { nome, cargo, sortBy, order } = req.query;
+
+    if (nome) {
+        agentes = agentes.filter(a => a.nome.toLowerCase().includes(nome.toLowerCase()));
+    }
+
+    if (cargo) {
+        agentes = agentes.filter(a => a.cargo.toLowerCase() === cargo.toLowerCase());
+    }
+
+    if (sortBy) {
+        const orderDirection = order === 'desc' ? -1 : 1;
+        agentes.sort((a, b) => {
+            if (!a[sortBy] || !b[sortBy]) return 0;
+            if (typeof a[sortBy] === 'string') {
+                return a[sortBy].localeCompare(b[sortBy]) * orderDirection;
+            }
+            if (typeof a[sortBy] === 'number') {
+                return (a[sortBy] - b[sortBy]) * orderDirection;
+            }
+            return 0;
+        });
+    }
+
+    res.json(agentes);
 }
 
 function getAgenteById(req, res) {
     const id = req.params.id;
-    const agente = agentesRepository.findAll().find(a => a.id === id);
 
     if (!uuidValidate(id)) {
         return res.status(400).send({ message: "ID inválido" });
     }
+
+    const agente = agentesRepository.findAll().find(a => a.id === id);
 
     if (agente) {
         res.json(agente);
@@ -30,8 +55,10 @@ function createAgente(req, res) {
         return res.status(400).send({ message: "Dados do agente incompletos" });
     }
 
-    if (!moment(newAgente.dataDeIncorporacao, 'YYYY-MM-DD', true).isValid()) {
-        return res.status(400).send({ message: "Data de incorporação inválida" });
+    const dataIncorporacao = moment(newAgente.dataDeIncorporacao, 'YYYY-MM-DD', true);
+
+    if (!dataIncorporacao.isValid() || dataIncorporacao.isAfter(moment(), 'day')) {
+        return res.status(400).send({ message: "Data de incorporação inválida ou futura" });
     }
 
     newAgente.id = uuidv4();
@@ -41,47 +68,81 @@ function createAgente(req, res) {
 
 function updateAgente(req, res) {
     const id = req.params.id;
-    const updatedAgente = req.body;
-    const index = agentesRepository.findAll().findIndex(a => a.id === id);
+    let updatedAgente = req.body;
+
+    if (!uuidValidate(id)) {
+        return res.status(400).send({ message: "ID inválido" });
+    }
+
+    if ('id' in updatedAgente) delete updatedAgente.id;
 
     if (!updatedAgente.nome || !updatedAgente.dataDeIncorporacao || !updatedAgente.cargo) {
         return res.status(400).send({ message: "Dados do agente incompletos" });
     }
 
-    if (!moment(updatedAgente.dataDeIncorporacao, 'YYYY-MM-DD', true).isValid()) {
-        return res.status(400).send({ message: "Data de incorporação inválida" });
+    const dataIncorporacao = moment(updatedAgente.dataDeIncorporacao, 'YYYY-MM-DD', true);
+    if (!dataIncorporacao.isValid() || dataIncorporacao.isAfter(moment(), 'day')) {
+        return res.status(400).send({ message: "Data de incorporação inválida ou futura" });
     }
 
-    if (index !== -1) {
-        updatedAgente.id = id;
-        agentesRepository.update(index, updatedAgente);
-        res.json(updatedAgente);
-    } else {
-        res.status(404).send({ message: "Agente não encontrado" });
+    const index = agentesRepository.findAll().findIndex(a => a.id === id);
+    if (index === -1) {
+        return res.status(404).send({ message: "Agente não encontrado" });
     }
+
+    updatedAgente.id = id;
+    agentesRepository.update(index, updatedAgente);
+    res.json(updatedAgente);
 }
 
 function partialUpdateAgente(req, res) {
     const id = req.params.id;
-    const updates = req.body;
-    delete updates.id;
-    const agente = agentesRepository.findAll().find(a => a.id === id);
-    if (agente) {
-        Object.assign(agente, updates);
-        res.json(agente);
-    } else {
-        res.status(404).send({ message: "Agente não encontrado" });
+
+    if (!uuidValidate(id)) {
+        return res.status(400).send({ message: "ID inválido" });
     }
+
+    const updates = req.body;
+
+    if ('id' in updates) delete updates.id;
+
+    if (updates.dataDeIncorporacao) {
+        const dataIncorporacao = moment(updates.dataDeIncorporacao, 'YYYY-MM-DD', true);
+        if (!dataIncorporacao.isValid() || dataIncorporacao.isAfter(moment(), 'day')) {
+            return res.status(400).send({ message: "Data de incorporação inválida ou futura" });
+        }
+    }
+
+    if (updates.nome !== undefined && !updates.nome) {
+        return res.status(400).send({ message: "Nome inválido" });
+    }
+    if (updates.cargo !== undefined && !updates.cargo) {
+        return res.status(400).send({ message: "Cargo inválido" });
+    }
+
+    const agente = agentesRepository.findAll().find(a => a.id === id);
+
+    if (!agente) {
+        return res.status(404).send({ message: "Agente não encontrado" });
+    }
+
+    Object.assign(agente, updates);
+    res.json(agente);
 }
 
 function deleteAgente(req, res) {
     const id = req.params.id;
+
+    if (!uuidValidate(id)) {
+        return res.status(400).send({ message: "ID inválido" });
+    }
+
     const index = agentesRepository.findAll().findIndex(a => a.id === id);
     if (index !== -1) {
         agentesRepository.remove(index);
-        res.status(204).send();
+        return res.status(204).send();
     } else {
-        res.status(404).send({ message: "Agente não encontrado" });
+        return res.status(404).send({ message: "Agente não encontrado" });
     }
 }
 
@@ -92,4 +153,4 @@ module.exports = {
     updateAgente,
     partialUpdateAgente,
     deleteAgente
-}
+};
