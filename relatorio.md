@@ -1,39 +1,33 @@
 <sup>Esse é um feedback gerado por IA, ele pode conter erros.</sup>
 
-Você tem 4 créditos restantes para usar o sistema de feedback AI.
+Você tem 3 créditos restantes para usar o sistema de feedback AI.
 
 # Feedback para Aloana:
 
-Nota final: **76.8/100**
+Nota final: **74.6/100**
 
-# Feedback para Aloana 🚓✨
-
-Olá Aloana! Que jornada incrível você está trilhando construindo essa API para o Departamento de Polícia! 🚀 Antes de mais nada, quero parabenizar você pelo esforço e pela organização do seu projeto. Dá pra ver que você se dedicou bastante e já entregou muita coisa bacana! Vamos juntos destrinchar seu código para deixar ele ainda melhor? 💪😉
+Olá, Aloana! 👋🚓 Que alegria revisar seu código! Primeiramente, parabéns pelo esforço e pela organização do projeto! 🎉 Você estruturou bem seu backend, separando rotas, controllers e repositories, o que é fundamental para um projeto escalável e fácil de manter. Vamos celebrar juntos suas conquistas e também explorar alguns pontos que podem te levar ao próximo nível! 💪✨
 
 ---
 
-## 🎉 Pontos Fortes e Conquistas Bônus
+## 🎉 Pontos Fortes que Merecem Destaque
 
-- Sua organização do projeto está muito boa, seguindo a arquitetura modular com **routes**, **controllers** e **repositories** bem separadinhos. Isso é fundamental para manter o código limpo e escalável! 👏
-  
-- Os endpoints básicos para **agentes** e **casos** estão implementados e funcionam muito bem. Você cobriu todos os métodos HTTP principais (GET, POST, PUT, PATCH, DELETE) para ambos os recursos. Isso é excelente!
-
-- As validações de dados que você fez, especialmente no controlador de agentes, estão muito bem feitas, como a verificação da data de incorporação com o Moment.js e a validação dos UUIDs.
-
-- Você implementou filtros simples para os casos (por status e agente) e para agentes (por nome, cargo), que funcionam corretamente. Isso é um diferencial importante! 🌟
-
-- O Swagger está integrado, o que ajuda demais a documentar e testar sua API.
+- **Estrutura modular impecável!** Você distribuiu muito bem as responsabilidades entre `routes`, `controllers` e `repositories`. Isso deixa seu código limpo e alinhado com boas práticas.
+- **Validações feitas com carinho:** Vi que você usou a biblioteca `uuid` para validar IDs e o `moment` para validar datas, o que é ótimo para garantir a integridade dos dados.
+- **Tratamento de erros personalizado:** Você já retorna mensagens claras e status HTTP adequados para várias situações, como 400 para dados inválidos e 404 para recursos não encontrados.
+- **Filtros e ordenação nos endpoints:** Implementou filtros por status e agente nos casos, e filtros por nome, cargo e datas nos agentes, com ordenação. Isso mostra que você entendeu bem a importância de endpoints flexíveis.
+- **Bônus conquistados:** Você conseguiu implementar filtros de casos por status e agente, e também fez a ordenação por data de incorporação em agentes — isso é um diferencial! 👏
 
 ---
 
-## 🕵️ Análise Profunda — Pontos para Melhorar e Ajustar
+## 🔎 Análise Detalhada dos Pontos que Precisam de Atenção
 
-### 1. **Falha ao buscar agente inexistente (Status 404)**
-No seu `agentesController.js`, a função `getAgenteById` está assim:
+### 1. Falhas ao buscar agente inexistente (404) e caso por ID inválido (404)
+
+Você já trata bem o status 400 para IDs inválidos com `uuidValidate`. Porém, percebi que quando você faz a busca por ID e não encontra o recurso, o retorno 404 funciona para agentes:
 
 ```js
 const agente = agentesRepository.findAll().find(a => a.id === id);
-
 if (agente) {
     res.json(agente);
 } else {
@@ -41,21 +35,26 @@ if (agente) {
 }
 ```
 
-Aqui está correto o retorno 404 para agente não encontrado. Então, se você está recebendo falha nesse ponto, pode ser que o ID enviado na requisição esteja com formato inválido e esteja sendo rejeitado antes. Você já faz a validação do UUID:
+Mas para casos, você tem:
 
 ```js
-if (!uuidValidate(id)) {
-    return res.status(400).send({ message: "ID inválido" });
+const caso = casosRepository.findAll().find(c => c.id === id);
+if (caso) {
+    res.json(caso);
+} else {
+    res.status(404).send({ message: "Caso não encontrado" });
 }
 ```
 
-Isso está ótimo! Então, a causa raiz pode ser que o ID passado no teste não existe mesmo no array, e seu código já trata isso retornando 404. Portanto, nesse ponto, seu código está correto! 👍
+Aqui está correto. Então, o problema pode estar em algum detalhe no teste ou em como o ID inválido é passado. Como você já valida o formato do ID, isso está OK.
+
+**Sugestão:** Certifique-se de que o ID passado no teste ou na requisição realmente não existe no array. Se quiser garantir, pode criar um ID fixo para testes inexistentes e usar ele.
 
 ---
 
-### 2. **PATCH em agente com payload incorreto (Status 400)**
+### 2. PATCH em agente com payload inválido (400)
 
-No `partialUpdateAgente`, você tem:
+Você tem uma validação bacana no `partialUpdateAgente` para checar se o payload é um objeto não vazio:
 
 ```js
 if (!updates || typeof updates !== 'object' || Array.isArray(updates) || Object.keys(updates).length === 0) {
@@ -63,15 +62,76 @@ if (!updates || typeof updates !== 'object' || Array.isArray(updates) || Object.
 }
 ```
 
-Isso é perfeito para barrar payloads vazios ou mal formatados. Também faz validação dos campos `nome` e `cargo` para que não fiquem vazios.
+Isso está ótimo! Também impede alteração do `id`:
 
-O que pode estar acontecendo é que o teste envia um payload que não é um objeto ou está vazio, e seu código já está preparado para isso, retornando 400. Então, a falha no teste indica que seu código está correto e que o teste espera esse comportamento. Parabéns por essa validação! 🎯
+```js
+if ('id' in updates) delete updates.id;
+```
+
+No entanto, as penalidades indicam que você ainda permite alterar o ID do agente via PUT e PATCH. Como isso é um problema grave, vamos focar nisso.
 
 ---
 
-### 3. **Criar caso com agente_id inválido ou inexistente (Status 404)**
+### 3. Penalidades: Consegue alterar ID do agente com PUT e PATCH, e ID do caso com PUT
 
-No `createCaso`, você faz:
+**Aqui está o ponto mais crítico!** 🚨
+
+No seu código do controller, você tenta impedir alteração do `id` com:
+
+```js
+if ('id' in updatedAgente) delete updatedAgente.id;
+```
+
+No PUT e PATCH para agentes, e similar para casos. Porém, isso só remove a propriedade do objeto que veio no corpo da requisição, mas não impede que o ID original seja substituído ao atualizar o array.
+
+Por exemplo, no `updateAgente`:
+
+```js
+updatedAgente.id = id; // Você está sobrescrevendo o id que veio no body com o id do path param
+agentesRepository.update(index, updatedAgente);
+```
+
+Isso é correto e deveria impedir alteração do ID. Então, por que a penalidade?
+
+**Hipótese:** Talvez o problema seja que no PATCH, você está fazendo:
+
+```js
+const updatedAgente = { ...agente, ...updates, id };
+agentesRepository.update(index, updatedAgente);
+```
+
+Aqui você também força o `id` correto, o que é ótimo.
+
+Já no `partialUpdateCaso`, você faz:
+
+```js
+Object.assign(caso, updates);
+res.json(caso);
+```
+
+**Aqui está o problema!** Você está alterando o objeto `caso` diretamente com `Object.assign`, mas não está impedindo que o `id` seja alterado, nem está sobrescrevendo o `id` original depois. Além disso, você remove o `id` do `updates` antes, mas não força o `id` original após a atualização.
+
+**Isso pode permitir que o `id` do caso seja alterado via PATCH, o que não pode!**
+
+**Solução para o `partialUpdateCaso`:**
+
+Altere para algo assim:
+
+```js
+if ('id' in updates) delete updates.id;
+
+Object.assign(caso, updates);
+caso.id = id; // força o id original
+res.json(caso);
+```
+
+Assim, o ID do caso não será alterado.
+
+---
+
+### 4. Falha ao criar caso com ID de agente inválido/inexistente (404)
+
+No seu `createCaso`, você faz validação correta do agente:
 
 ```js
 if (!uuidValidate(newCaso.agente_id)) {
@@ -84,338 +144,110 @@ if (!agenteExiste) {
 }
 ```
 
-Aqui está tudo certo para validar o ID do agente e garantir que ele exista. Se o teste falha, provavelmente a causa raiz pode ser a forma como o array de agentes está sendo manipulado no `agentesRepository`.
+Isso está perfeito! Se você recebe 404 ao criar caso com agente inexistente, é sinal de que o código está correto. Se o teste falha, pode ser por algum detalhe no envio do ID (ex: maiúsculas/minúsculas, espaços).
 
-**Um ponto importante que encontrei:** No seu arquivo `repositories/casosRepository.js`, você está importando os agentes assim:
-
-```js
-const agentes = agentesRepository.findAll();
-```
-
-E depois usa `agentes[0]`, `agentes[1]`... para atribuir `agente_id` nos casos. Porém, o array de agentes tem 9 elementos, e você tenta acessar `agentes[9]` para o último caso:
-
-```js
-agente_id: agentes[9] ? agentes[9].id : uuidv4()
-```
-
-Mas `agentes[9]` é `undefined` (pois índices vão de 0 a 8). Isso faz com que o `agente_id` desse caso seja um UUID novo e não existente no array de agentes. Isso pode causar problemas quando você tenta criar ou atualizar casos com agente_id que não existe.
-
-**Sugestão para corrigir:**
-
-No arquivo `casosRepository.js`, ajuste para garantir que o índice não ultrapasse o tamanho do array agentes:
-
-```js
-const agentes = agentesRepository.findAll();
-
-const casos = [
-  {
-    id: uuidv4(),
-    titulo: "homicidio",
-    descricao: "...",
-    status: "aberto",
-    agente_id: agentes[0] ? agentes[0].id : uuidv4()
-  },
-  // ...
-  {
-    id: uuidv4(),
-    titulo: "lesão corporal",
-    descricao: "...",
-    status: "solucionado",
-    agente_id: agentes[8] ? agentes[8].id : uuidv4()  // Use índice 8, não 9
-  }
-];
-```
-
-Ou melhor, use `.slice(0, agentes.length)` para garantir que os casos tenham agentes válidos.
+**Dica:** Verifique se o ID do agente passado no teste realmente não existe no seu array de agentes. Você pode criar um ID fixo para teste de agente inexistente.
 
 ---
 
-### 4. **Buscar caso por ID inválido (Status 404)**
+### 5. Falhas no filtro de casos por keywords no título/descrição e filtros mais complexos em agentes
 
-No `getCasoById`, você faz essa verificação:
+Você implementou filtro de `keyword` em casos:
 
 ```js
-if (!uuidValidate(id)) {
-    return res.status(400).send({ message: "ID inválido" });
+if (keyword) {
+    const kw = keyword.toLowerCase();
+    casos = casos.filter(c =>
+        (c.titulo && c.titulo.toLowerCase().includes(kw)) ||
+        (c.descricao && c.descricao.toLowerCase().includes(kw))
+    );
 }
 ```
 
-E depois:
+Isso está correto e deveria funcionar.
+
+Já para agentes, o filtro por data de incorporação com sorting tem algumas nuances:
 
 ```js
-const caso = casosRepository.findAll().find(c => c.id === id);
-if (caso) {
-    res.json(caso);
-} else {
-    res.status(404).send({ message: "Caso não encontrado" });
-}
-```
-
-Aqui também está correto o tratamento para ID inválido e para caso não encontrado. Se está falhando, pode ser que o ID passado na requisição realmente não exista no array `casos`, e seu código já retorna 404. Então está certo! 👍
-
----
-
-### 5. **Atualizar caso inexistente (PUT e PATCH retornam 404)**
-
-No `updateCaso` e `partialUpdateCaso`, você verifica se o índice do caso existe:
-
-```js
-const index = casosRepository.findAll().findIndex(c => c.id === id);
-if (index === -1) {
-    return res.status(404).send({ message: "Caso não encontrado" });
-}
-```
-
-E no patch:
-
-```js
-const caso = casosRepository.findAll().find(c => c.id === id);
-if (!caso) {
-    return res.status(404).send({ message: "Caso não encontrado" });
-}
-```
-
-Isso está correto. Se o teste falha, provavelmente é porque o ID passado não existe mesmo, e seu código está retornando 404 como esperado.
-
----
-
-### 6. **Penalidade: Conseguir alterar ID do agente e do caso no PUT**
-
-Aqui temos um problema que precisa ser corrigido! 🚨
-
-No seu `updateAgente`:
-
-```js
-if ('id' in updatedAgente) delete updatedAgente.id;
-```
-
-Você está **removendo** o campo `id` do objeto enviado no payload, mas depois faz:
-
-```js
-updatedAgente.id = id;
-```
-
-Isso está correto para **não permitir alteração do ID** via PUT. Então, por que a penalidade?
-
-O problema está na função `partialUpdateAgente`, onde você faz:
-
-```js
-if ('id' in updates) delete updates.id;
-Object.assign(agente, updates);
-```
-
-Aqui você está removendo o `id` do objeto `updates`, mas faz um `Object.assign` direto no objeto `agente` que está no array. Isso pode estar alterando o ID se o `updates` tiver o campo `id` antes do delete? Parece que não, porque você já removeu o campo `id`.
-
-Mas o problema pode estar no `updateCaso`:
-
-```js
-if ('id' in updatedCaso) delete updatedCaso.id;
-```
-
-E depois:
-
-```js
-updatedCaso.id = id;
-casosRepository.update(index, updatedCaso);
-```
-
-Isso é correto.
-
-O problema pode estar no `partialUpdateCaso`:
-
-```js
-if ('id' in updates) delete updates.id;
-Object.assign(caso, updates);
-```
-
-Aqui, se o `updates` tiver o campo `id`, você remove antes de aplicar o `Object.assign`, então não deveria alterar o ID.
-
-**Porém, a penalidade indica que o ID está sendo alterado, então o que pode estar acontecendo?**
-
-Provavelmente, o problema está no fato de que você está alterando diretamente o objeto que está dentro do array, sem criar uma cópia. Isso pode estar causando efeitos colaterais indesejados em outras partes do código.
-
-**Sugestão para evitar alteração do ID:**
-
-No `partialUpdateAgente` e `partialUpdateCaso`, em vez de aplicar `Object.assign` diretamente no objeto original, faça uma cópia e atualize somente os campos permitidos, garantindo que o ID nunca seja alterado.
-
-Exemplo para `partialUpdateAgente`:
-
-```js
-const agente = agentesRepository.findAll().find(a => a.id === id);
-if (!agente) {
-    return res.status(404).send({ message: "Agente não encontrado" });
-}
-
-if ('id' in updates) delete updates.id;
-
-const updatedAgente = { ...agente, ...updates };
-const index = agentesRepository.findAll().findIndex(a => a.id === id);
-
-agentesRepository.update(index, updatedAgente);
-res.json(updatedAgente);
-```
-
-Assim você evita alterar o objeto original diretamente e garante que o ID permaneça intacto.
-
----
-
-### 7. **Filtros avançados e mensagens de erro customizadas**
-
-Você implementou filtros básicos que funcionam, mas alguns filtros mais complexos, como por exemplo:
-
-- Filtrar agentes por data de incorporação com ordenação crescente e decrescente
-- Filtrar casos por palavras-chave no título e descrição
-- Mensagens de erro customizadas para agentes e casos inválidos
-
-Não estão completamente implementados ou funcionando.
-
-Por exemplo, no `getAllAgentes` você tem:
-
-```js
-if (dataDeIncorporacao) {
+if (dataDeIncorporacao && !dataInicial && !dataFinal) {
     agentes = agentes.filter(a => a.dataDeIncorporacao === dataDeIncorporacao);
 }
-```
 
-Isso filtra data exatamente igual, mas não permite filtros por intervalo ou ordenação avançada.
+if (dataInicial || dataFinal) {
+    agentes = agentes.filter(a => {
+        const data = a.dataDeIncorporacao;
+        let after = true, before = true;
 
-Além disso, a ordenação por `dataDeIncorporacao` está um pouco redundante:
-
-```js
-if (req.query.sortBy === 'dataDeIncorporacao') {
-    const orderDirection = req.query.order === 'desc' ? -1 : 1;
-    agentes.sort((a, b) => (a.dataDeIncorporacao.localeCompare(b.dataDeIncorporacao)) * orderDirection);
-}
-
-if (sortBy) {
-    const orderDirection = order === 'desc' ? -1 : 1;
-    agentes.sort((a, b) => {
-        if (!a[sortBy] || !b[sortBy]) return 0;
-        if (typeof a[sortBy] === 'string') {
-            return a[sortBy].localeCompare(b[sortBy]) * orderDirection;
-        }
-        if (typeof a[sortBy] === 'number') {
-            return (a[sortBy] - b[sortBy]) * orderDirection;
-        }
-        return 0;
+        if (dataInicial)
+            after = data >= dataInicial;
+        if (dataFinal)
+            before = data <= dataFinal;
+        return after && before;
     });
 }
 ```
 
-Aqui, você está aplicando duas vezes a ordenação se o `sortBy` for `dataDeIncorporacao`. Isso pode gerar conflito.
+Aqui, `data` e os parâmetros são strings no formato `"YYYY-MM-DD"`. Comparar strings funciona para datas ISO, mas pode ser mais seguro usar `moment` para comparar datas, evitando erros sutis.
 
-**Para melhorar:**
-
-- Centralize a ordenação em um único bloco.
-- Implemente filtros por intervalo de datas, se for requisito.
-- Para filtros por palavra-chave em casos, você já tem um filtro por `keyword` no `getAllCasos`, mas o teste bônus indica que ele não está funcionando 100%. Verifique se o nome do parâmetro está correto e se o filtro considera o campo `descricao` e `titulo` corretamente.
-
----
-
-## 📚 Recomendações de Aprendizado
-
-Para fortalecer esses pontos, recomendo os seguintes recursos:
-
-- Para entender melhor a estrutura modular e o uso correto das rotas e controllers:  
-  https://youtu.be/bGN_xNc4A1k?si=Nj38J_8RpgsdQ-QH
-
-- Para aprofundar no tratamento correto de status HTTP e validação de dados:  
-  https://developer.mozilla.org/pt-BR/docs/Web/HTTP/Status/400  
-  https://developer.mozilla.org/pt-BR/docs/Web/HTTP/Status/404
-
-- Para manipulação avançada de arrays e objetos em JS, especialmente para evitar efeitos colaterais:  
-  https://youtu.be/glSgUKA5LjE?si=t9G2NsC8InYAU9cI
-
-- Para entender o fluxo de requisição e resposta no Express e o uso correto de middlewares:  
-  https://youtu.be/Bn8gcSQH-bc?si=Df4htGoVrV0NR7ri
-
----
-
-## 🗺️ Sobre a Estrutura do Projeto
-
-Sua estrutura está muito próxima do esperado, o que é ótimo! Apenas fique atento para manter os arquivos dentro das pastas corretas, como você já fez:
-
-```
-├── controllers/
-│   ├── agentesController.js
-│   └── casosController.js
-├── repositories/
-│   ├── agentesRepository.js
-│   └── casosRepository.js
-├── routes/
-│   ├── agentesRoutes.js
-│   └── casosRoutes.js
-├── docs/
-│   └── swagger.js
-├── server.js
-└── utils/
-    └── errorHandler.js
-```
-
-Isso facilita a manutenção e a escalabilidade da aplicação.
-
----
-
-## 📝 Resumo Rápido dos Principais Pontos para Focar
-
-- 🔍 Corrija os índices usados para atribuir `agente_id` nos casos no `casosRepository` para garantir que todos apontem para agentes existentes.
-
-- 🚫 Evite a possibilidade de alteração do campo `id` nas operações de atualização (PUT e PATCH) criando cópias dos objetos antes de atualizar e garantindo que o `id` nunca seja substituído.
-
-- ⚙️ Ajuste a lógica de ordenação e filtragem para evitar redundâncias e implemente filtros mais avançados para data de incorporação e busca por palavra-chave.
-
-- ✅ Continue validando corretamente os UUIDs e retornando os status HTTP apropriados (400 para dados inválidos, 404 para não encontrados).
-
-- 📚 Estude os recursos indicados para aprimorar o entendimento sobre manipulação de dados, arquitetura MVC e tratamento correto de requisições HTTP.
-
----
-
-## Finalizando... 🌟
-
-Aloana, seu código já está muito bem estruturado e com diversas funcionalidades implementadas corretamente! Isso mostra que você tem um ótimo domínio dos conceitos básicos e intermediários de Node.js e Express.js. Com alguns ajustes finos, principalmente na manipulação dos dados e na proteção do campo `id`, sua API vai ficar ainda mais robusta e alinhada com as melhores práticas.
-
-Continue nessa pegada, revisando cada detalhe com carinho e aprendendo com cada desafio. Você está no caminho certo para se tornar uma desenvolvedora backend de alta performance! 🚀💙
-
-Se precisar de ajuda para entender algum ponto específico, estou aqui para te apoiar!
-
-Um abraço de Code Buddy e até a próxima revisão! 🤖✨
-
----
-
-# Código exemplo para evitar alteração do ID no PATCH de agentes:
+**Sugestão:** Use `moment` para comparar datas, por exemplo:
 
 ```js
-function partialUpdateAgente(req, res) {
-    const id = req.params.id;
+const data = moment(a.dataDeIncorporacao, 'YYYY-MM-DD');
+const inicio = dataInicial ? moment(dataInicial, 'YYYY-MM-DD') : null;
+const fim = dataFinal ? moment(dataFinal, 'YYYY-MM-DD') : null;
 
-    if (!uuidValidate(id)) {
-        return res.status(400).send({ message: "ID inválido" });
-    }
+let after = !inicio || data.isSameOrAfter(inicio, 'day');
+let before = !fim || data.isSameOrBefore(fim, 'day');
 
-    const updates = req.body;
-
-    if (!updates || typeof updates !== 'object' || Array.isArray(updates) || Object.keys(updates).length === 0) {
-        return res.status(400).send({ message: "Payload vazio ou inválido" });
-    }
-
-    if ('id' in updates) delete updates.id;
-
-    const agente = agentesRepository.findAll().find(a => a.id === id);
-    if (!agente) {
-        return res.status(404).send({ message: "Agente não encontrado" });
-    }
-
-    const updatedAgente = { ...agente, ...updates };
-    const index = agentesRepository.findAll().findIndex(a => a.id === id);
-    agentesRepository.update(index, updatedAgente);
-
-    res.json(updatedAgente);
-}
+return after && before;
 ```
+
+Assim você garante que o filtro funcione corretamente em todos os casos.
 
 ---
 
-Continue firme, Aloana! Você está fazendo um excelente trabalho! 🚓💪✨
+### 6. Organização do Projeto
+
+Sua estrutura de arquivos está muito boa e condiz com o esperado:
+
+```
+server.js
+routes/
+controllers/
+repositories/
+docs/
+utils/
+package.json
+```
+
+Parabéns por seguir esse padrão! Isso facilita muito a manutenção e escalabilidade do projeto.
+
+---
+
+## 💡 Recomendações de Aprendizado para Você
+
+- Para reforçar a validação e tratamento de erros HTTP, recomendo dar uma olhada neste artigo da MDN sobre [Status 400](https://developer.mozilla.org/pt-BR/docs/Web/HTTP/Status/400) e [Status 404](https://developer.mozilla.org/pt-BR/docs/Web/HTTP/Status/404).
+- Para aprofundar no uso de middlewares e roteamento no Express, veja este vídeo super didático: https://youtu.be/RSZHvQomeKE
+- Para entender melhor manipulação de arrays (filter, find, map), que são a base do seu repositório em memória, este vídeo é excelente: https://youtu.be/glSgUKA5LjE?si=t9G2NsC8InYAU9cI
+- Sobre comparação e validação de datas com Moment.js, recomendo revisar a documentação oficial: https://momentjs.com/docs/#/query/is-same-or-after/
+
+---
+
+## 📝 Resumo dos Principais Pontos para Melhorar
+
+- **Impeça alteração do ID dos recursos em todas as operações PUT e PATCH**, especialmente no `partialUpdateCaso` onde o ID pode estar sendo alterado sem restrição. Sempre force o ID do path param após atualizar o objeto.
+- **Use Moment.js para comparar datas no filtro de agentes**, garantindo que filtros por intervalo de datas funcionem corretamente.
+- **Verifique se os IDs usados para testes de inexistência realmente não estão no array**, para garantir que o 404 seja retornado corretamente.
+- **Continue aprimorando as mensagens de erro personalizadas**, tornando a API mais amigável e clara para quem consome.
+- **Mantenha o padrão de arquitetura modular**, que você já está fazendo muito bem!
+
+---
+
+Aloana, você está no caminho certo! 🚀 Seu código mostra que você compreende os conceitos fundamentais de APIs RESTful e Express.js, e com pequenos ajustes, sua API vai ficar ainda mais robusta e profissional. Continue praticando, testando e explorando! Estou aqui torcendo pelo seu sucesso! 🙌💙
+
+Se precisar de qualquer ajuda para entender algum ponto, não hesite em chamar! Vamos juntos nessa jornada de aprendizado! 👩‍💻👨‍💻
+
+Um abraço forte e até a próxima revisão! 🤗✨
 
 > Caso queira tirar uma dúvida específica, entre em contato com o Chapter no nosso [discord](https://discord.gg/DryuHVnz).
 
