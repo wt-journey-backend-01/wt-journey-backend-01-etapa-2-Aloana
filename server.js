@@ -1,26 +1,33 @@
 const express = require('express');
-const { errorHandler } = require('./utils/errorHandler');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
+const { errorHandler } = require('./utils/errorHandler');
 
 const agentesRoutes = require('./routes/agentesRoutes');
 const casosRoutes = require('./routes/casosRoutes');
 
+const { swaggerUi, swaggerSpec } = require('./docs/swagger');
+
+app.use(express.json());
+
 app.use('/agentes', agentesRoutes);
 app.use('/casos', casosRoutes);
 
-const { swaggerUi, swaggerSpec } = require('./docs/swagger');
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 app.get('/', (req, res) => {
   res.send('API do Departamento de Polícia está rodando!');
 });
 
+app.use(errorHandler);
+
+app.use((req, res, next) => {
+  res.status(404).json({ message: 'Rota não encontrada' });
+});
+
 app.listen(PORT, () => {
   console.log(`🚓 Servidor rodando em http://localhost:${PORT}`);
 });
 
-app.use(errorHandler);
 module.exports = app;
