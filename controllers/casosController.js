@@ -2,6 +2,7 @@ const casosRepository = require("../repositories/casosRepository");
 const agentesRepository = require("../repositories/agentesRepository");
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
 const { AppError } = require("../utils/errorHandler");
+const moment = require('moment');
 
 async function getAllCasos(req, res, next) {
     try {
@@ -31,19 +32,28 @@ async function getAllCasos(req, res, next) {
 
         if (sortBy) {
             const orderDirection = order === 'desc' ? -1 : 1;
-            casos.sort((a, b) => {
-                if (!a[sortBy] || !b[sortBy]) return 0;
-                if (typeof a[sortBy] === 'string') {
-                    return a[sortBy].localeCompare(b[sortBy]) * orderDirection;
-                }
-                if (typeof a[sortBy] === 'number') {
-                    return (a[sortBy] - b[sortBy]) * orderDirection;
-                }
-                return 0;
-            });
+            if (sortBy === 'dataDeAbertura' || sortBy === 'dataDeFechamento') {
+                casos.sort((a, b) => {
+                    const dateA = moment(a[sortBy], 'YYYY-MM-DD');
+                    const dateB = moment(b[sortBy], 'YYYY-MM-DD');
+                    if (!dateA.isValid() || !dateB.isValid()) return 0;
+                    return dateA.isBefore(dateB) ? -1 * orderDirection : dateA.isAfter(dateB) ? 1 * orderDirection : 0;
+                });
+            } else {
+                casos.sort((a, b) => {
+                    if (!a[sortBy] || !b[sortBy]) return 0;
+                    if (typeof a[sortBy] === 'string') {
+                        return a[sortBy].localeCompare(b[sortBy]) * orderDirection;
+                    }
+                    if (typeof a[sortBy] === 'number') {
+                        return (a[sortBy] - b[sortBy]) * orderDirection;
+                    }
+                    return 0;
+                });
+            }
         }
 
-        return res.json(casos);
+        res.json(casos);
     } catch (error) {
         next(error);
     }
@@ -73,7 +83,8 @@ async function createCaso(req, res, next) {
         if (!newCaso || typeof newCaso !== 'object' || Array.isArray(newCaso) || Object.keys(newCaso).length === 0)
             throw new AppError("Payload vazio ou inválido", 400);
 
-        if ('id' in newCaso) throw new AppError("Não é permitido fornecer o campo 'id' ao criar caso", 400);
+        if ('id' in newCaso)
+            throw new AppError("Não é permitido fornecer o campo 'id' ao criar caso", 400);
 
         if (!newCaso.titulo || !newCaso.descricao || !newCaso.status || !newCaso.agente_id)
             throw new AppError("Dados do caso incompletos", 400);
@@ -104,10 +115,12 @@ async function updateCaso(req, res, next) {
         const statusValidos = ['aberto', 'solucionado'];
 
         if (!uuidValidate(id)) throw new AppError("ID inválido", 400);
+
         if (!updatedCaso || typeof updatedCaso !== 'object' || Array.isArray(updatedCaso) || Object.keys(updatedCaso).length === 0)
             throw new AppError("Payload vazio ou inválido", 400);
 
-        if ('id' in updatedCaso) throw new AppError("Não é permitido alterar o campo 'id'", 400);
+        if ('id' in updatedCaso)
+            throw new AppError("Não é permitido alterar o campo 'id'", 400);
 
         if (!updatedCaso.titulo || !updatedCaso.descricao || !updatedCaso.status || !updatedCaso.agente_id)
             throw new AppError("Dados do caso incompletos", 400);
@@ -123,7 +136,8 @@ async function updateCaso(req, res, next) {
             throw new AppError("Agente responsável não encontrado", 404);
 
         const index = casosRepository.findAll().findIndex(c => c.id === id);
-        if (index === -1) throw new AppError("Caso não encontrado", 404);
+        if (index === -1)
+            throw new AppError("Caso não encontrado", 404);
 
         updatedCaso.id = id;
         casosRepository.update(index, updatedCaso);

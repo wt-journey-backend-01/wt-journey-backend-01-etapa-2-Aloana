@@ -20,11 +20,11 @@ app.get('/', (req, res) => {
   res.send('API do Departamento de Polícia está rodando!');
 });
 
-app.use(errorHandler);
-
 app.use((req, res, next) => {
   res.status(404).json({ message: 'Rota não encontrada' });
 });
+
+app.use(errorHandler);
 
 app.listen(PORT, () => {
   console.log(`🚓 Servidor rodando em http://localhost:${PORT}`);

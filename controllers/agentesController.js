@@ -29,14 +29,27 @@ async function getAllAgentes(req, res, next) {
         }
         if (sortBy) {
             const orderDirection = order === 'desc' ? -1 : 1;
-            agentes.sort((a, b) => {
-                if (!a[sortBy] || !b[sortBy]) return 0;
-                if (typeof a[sortBy] === 'string') return a[sortBy].localeCompare(b[sortBy]) * orderDirection;
-                if (typeof a[sortBy] === 'number') return (a[sortBy] - b[sortBy]) * orderDirection;
-                return 0;
-            });
+            if (sortBy === 'dataDeIncorporacao') {
+                agentes.sort((a, b) => {
+                    const dateA = moment(a.dataDeIncorporacao, 'YYYY-MM-DD');
+                    const dateB = moment(b.dataDeIncorporacao, 'YYYY-MM-DD');
+                    if (!dateA.isValid() || !dateB.isValid()) return 0;
+                    return dateA.isBefore(dateB) ? -1 * orderDirection : dateA.isAfter(dateB) ? 1 * orderDirection : 0;
+                });
+            } else {
+                agentes.sort((a, b) => {
+                    if (!a[sortBy] || !b[sortBy]) return 0;
+                    if (typeof a[sortBy] === 'string') {
+                        return a[sortBy].localeCompare(b[sortBy]) * orderDirection;
+                    }
+                    if (typeof a[sortBy] === 'number') {
+                        return (a[sortBy] - b[sortBy]) * orderDirection;
+                    }
+                    return 0;
+                });
+            }
         }
-        return res.json(agentes);
+        res.json(agentes);
     } catch (error) {
         next(error);
     }
@@ -63,7 +76,8 @@ async function createAgente(req, res, next) {
         if (!newAgente || typeof newAgente !== 'object' || Array.isArray(newAgente) || Object.keys(newAgente).length === 0)
             throw new AppError("Payload vazio ou inválido", 400);
 
-        if ('id' in newAgente) throw new AppError("Não é permitido fornecer o campo 'id' ao criar agente", 400);
+        if ('id' in newAgente)
+            throw new AppError("Não é permitido fornecer o campo 'id' ao criar agente", 400);
 
         if (!newAgente.nome || !newAgente.dataDeIncorporacao || !newAgente.cargo)
             throw new AppError("Dados do agente incompletos", 400);
@@ -87,9 +101,12 @@ async function updateAgente(req, res, next) {
         const updatedAgente = req.body;
 
         if (!uuidValidate(id)) throw new AppError("ID inválido", 400);
+
         if (!updatedAgente || typeof updatedAgente !== 'object' || Array.isArray(updatedAgente) || Object.keys(updatedAgente).length === 0)
             throw new AppError("Payload vazio ou inválido", 400);
-        if ('id' in updatedAgente) throw new AppError("Não é permitido alterar o campo 'id'", 400);
+
+        if ('id' in updatedAgente)
+            throw new AppError("Não é permitido alterar o campo 'id'", 400);
 
         if (!updatedAgente.nome || !updatedAgente.dataDeIncorporacao || !updatedAgente.cargo)
             throw new AppError("Dados do agente incompletos", 400);
@@ -116,16 +133,19 @@ async function partialUpdateAgente(req, res, next) {
         const updates = req.body;
 
         if (!uuidValidate(id)) throw new AppError("ID inválido", 400);
+
         if (!updates || typeof updates !== 'object' || Array.isArray(updates) || Object.keys(updates).length === 0)
             throw new AppError("Payload vazio ou inválido", 400);
 
-        if ('id' in updates) throw new AppError("Não é permitido alterar o campo 'id'", 400);
+        if ('id' in updates)
+            throw new AppError("Não é permitido alterar o campo 'id'", 400);
 
         if (updates.dataDeIncorporacao) {
             const dataIncorporacao = moment(updates.dataDeIncorporacao, 'YYYY-MM-DD', true);
             if (!dataIncorporacao.isValid() || dataIncorporacao.isAfter(moment(), 'day'))
                 throw new AppError("Data de incorporação inválida ou futura", 400);
         }
+
         if (updates.nome !== undefined && !updates.nome)
             throw new AppError("Nome inválido", 400);
         if (updates.cargo !== undefined && !updates.cargo)
