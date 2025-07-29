@@ -50,9 +50,14 @@ function getCasoById(req, res) {
 
 function createCaso(req, res) {
     const newCaso = req.body;
+    const statusValidos = ['aberto', 'solucionado'];
 
     if (!newCaso.titulo || !newCaso.descricao || !newCaso.status || !newCaso.agente_id) {
         return res.status(400).send({ message: "Dados do caso incompletos" });
+    }
+
+    if (!statusValidos.includes(newCaso.status.toLowerCase())) {
+        return res.status(400).send({ message: "Status inválido. Deve ser 'aberto' ou 'solucionado'" });
     }
 
     if (!uuidValidate(newCaso.agente_id)) {
@@ -72,6 +77,7 @@ function createCaso(req, res) {
 function updateCaso(req, res) {
     const id = req.params.id;
     let updatedCaso = req.body;
+    const statusValidos = ['aberto', 'solucionado'];
 
     if (!uuidValidate(id)) {
         return res.status(400).send({ message: "ID inválido" });
@@ -81,6 +87,10 @@ function updateCaso(req, res) {
 
     if (!updatedCaso.titulo || !updatedCaso.descricao || !updatedCaso.status || !updatedCaso.agente_id) {
         return res.status(400).send({ message: "Dados do caso incompletos" });
+    }
+
+    if (!statusValidos.includes(newCaso.status.toLowerCase())) {
+        return res.status(400).send({ message: "Status inválido. Deve ser 'aberto' ou 'solucionado'" });
     }
 
     if (!uuidValidate(updatedCaso.agente_id)) {
@@ -104,6 +114,7 @@ function updateCaso(req, res) {
 
 function partialUpdateCaso(req, res) {
     const id = req.params.id;
+    const statusValidos = ['aberto', 'solucionado'];
 
     if (!uuidValidate(id)) {
         return res.status(400).send({ message: "ID inválido" });
@@ -114,6 +125,10 @@ function partialUpdateCaso(req, res) {
 
     if (!caso) {
         return res.status(404).send({ message: "Caso não encontrado" });
+    }
+
+    if (!statusValidos.includes(newCaso.status.toLowerCase())) {
+        return res.status(400).send({ message: "Status inválido. Deve ser 'aberto' ou 'solucionado'" });
     }
 
     if ('id' in updates) delete updates.id;
@@ -138,6 +153,7 @@ function partialUpdateCaso(req, res) {
         return res.status(400).send({ message: "Status inválido" });
     }
 
+    if ('id' in updates) delete updates.id;
     Object.assign(caso, updates);
     res.json(caso);
 }

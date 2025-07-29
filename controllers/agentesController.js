@@ -113,6 +113,10 @@ function partialUpdateAgente(req, res) {
         }
     }
 
+    if (!updates || Object.keys(updates).length === 0) {
+        return res.status(400).send({ message: "Payload vazio ou inválido" });
+    }
+    
     if (updates.nome !== undefined && !updates.nome) {
         return res.status(400).send({ message: "Nome inválido" });
     }
