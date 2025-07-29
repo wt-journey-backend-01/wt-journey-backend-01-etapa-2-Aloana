@@ -66,13 +66,6 @@ const casos = [
         descricao: "Acidente de trânsito resultando em morte, registrado no dia 19/07/2007.",
         status: "solucionado",
         agente_id: agentes[8] ? agentes[8].id : uuidv4()
-    },
-    {
-        id: uuidv4(),
-        titulo: "lesão corporal",
-        descricao: "Caso de lesão corporal registrado no dia 20/07/2007, envolvendo briga entre vizinhos.",
-        status: "solucionado",
-        agente_id: agentes[9] ? agentes[9].id : uuidv4()
     }
 ];
 

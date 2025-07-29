@@ -5,21 +5,25 @@ const { v4: uuidv4, validate: uuidValidate } = require('uuid');
 function getAllCasos(req, res) {
     let casos = casosRepository.findAll();
 
-    const { status, agente_id, sortBy, order } = req.query;
+    const { status, agente_id, sortBy, order, keyword } = req.query;
 
     if (status) {
-        casos = casos.filter(c => c.status.toLowerCase() === status.toLowerCase());
+        casos = casos.filter(c =>
+            (c.status && c.status.toLowerCase() === status.toLowerCase())
+        );
     }
 
     if (agente_id) {
-        casos = casos.filter(c => c.agente_id === agente_id);
+        casos = casos.filter(c =>
+            (c.agente_id && c.agente_id === agente_id)
+        );
     }
 
-    if (req.query.keyword) {
-        const keyword = req.query.keyword.toLowerCase();
-        casos = casos.filter(c => 
-            c.titulo.toLowerCase().includes(keyword) || 
-            c.descricao.toLowerCase().includes(keyword)
+    if (keyword) {
+        const kw = keyword.toLowerCase();
+        casos = casos.filter(c =>
+            (c.titulo && c.titulo.toLowerCase().includes(kw)) ||
+            (c.descricao && c.descricao.toLowerCase().includes(kw))
         );
     }
 
@@ -37,7 +41,13 @@ function getAllCasos(req, res) {
         });
     }
 
-    res.json(casos);
+    if (casos.length === 0) {
+        return res.status(404).json({
+            message: "Nenhum caso encontrado para os filtros aplicados."
+        });
+    }
+
+    return res.json(casos);
 }
 
 function getCasoById(req, res) {

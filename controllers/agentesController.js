@@ -5,7 +5,7 @@ const moment = require('moment');
 function getAllAgentes(req, res) {
     let agentes = agentesRepository.findAll();
 
-    const { nome, cargo, dataDeIncorporacao, sortBy, order } = req.query;
+    const { nome, cargo, dataDeIncorporacao, dataInicial, dataFinal, sortBy, order } = req.query;
 
     if (nome) {
         agentes = agentes.filter(a => a.nome.toLowerCase().includes(nome.toLowerCase()));
@@ -15,13 +15,21 @@ function getAllAgentes(req, res) {
         agentes = agentes.filter(a => a.cargo.toLowerCase() === cargo.toLowerCase());
     }
 
-    if (dataDeIncorporacao) {
+    if (dataDeIncorporacao && !dataInicial && !dataFinal) {
         agentes = agentes.filter(a => a.dataDeIncorporacao === dataDeIncorporacao);
     }
 
-    if (req.query.sortBy === 'dataDeIncorporacao') {
-        const orderDirection = req.query.order === 'desc' ? -1 : 1;
-        agentes.sort((a, b) => (a.dataDeIncorporacao.localeCompare(b.dataDeIncorporacao)) * orderDirection);
+    if (dataInicial || dataFinal) {
+        agentes = agentes.filter(a => {
+            const data = a.dataDeIncorporacao;
+            let after = true, before = true;
+
+            if (dataInicial)
+                after = data >= dataInicial;
+            if (dataFinal)
+                before = data <= dataFinal;
+            return after && before;
+        });
     }
 
     if (sortBy) {
@@ -38,7 +46,7 @@ function getAllAgentes(req, res) {
         });
     }
 
-    res.json(agentes);
+    return res.json(agentes);
 }
 
 function getAgenteById(req, res) {
@@ -113,6 +121,10 @@ function partialUpdateAgente(req, res) {
 
     const updates = req.body;
 
+    if (!updates || typeof updates !== 'object' || Array.isArray(updates) || Object.keys(updates).length === 0) {
+        return res.status(400).send({ message: "Payload vazio ou inválido" });
+    }
+
     if ('id' in updates) delete updates.id;
 
     if (updates.dataDeIncorporacao) {
@@ -122,10 +134,6 @@ function partialUpdateAgente(req, res) {
         }
     }
 
-    if (!updates || typeof updates !== 'object' || Array.isArray(updates) || Object.keys(updates).length === 0) {
-        return res.status(400).send({ message: "Payload vazio ou inválido" });
-    }
-
     if (updates.nome !== undefined && !updates.nome) {
         return res.status(400).send({ message: "Nome inválido" });
     }
@@ -133,15 +141,17 @@ function partialUpdateAgente(req, res) {
         return res.status(400).send({ message: "Cargo inválido" });
     }
 
-    const agente = agentesRepository.findAll().find(a => a.id === id);
-
-    if (!agente) {
+    const agentes = agentesRepository.findAll();
+    const index = agentes.findIndex(a => a.id === id);
+    if (index === -1) {
         return res.status(404).send({ message: "Agente não encontrado" });
     }
 
-    if ('id' in updates) delete updates.id;
-    Object.assign(agente, updates);
-    res.json(agente);
+    const agente = agentes[index];
+    const updatedAgente = { ...agente, ...updates, id };
+
+    agentesRepository.update(index, updatedAgente);
+    res.json(updatedAgente);
 }
 
 function deleteAgente(req, res) {
