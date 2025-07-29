@@ -1,158 +1,120 @@
 <sup>Esse é um feedback gerado por IA, ele pode conter erros.</sup>
 
-Você tem 3 créditos restantes para usar o sistema de feedback AI.
+Você tem 2 créditos restantes para usar o sistema de feedback AI.
 
 # Feedback para Aloana:
 
-Nota final: **74.6/100**
+Nota final: **56.6/100**
 
-Olá, Aloana! 👋🚓 Que alegria revisar seu código! Primeiramente, parabéns pelo esforço e pela organização do projeto! 🎉 Você estruturou bem seu backend, separando rotas, controllers e repositories, o que é fundamental para um projeto escalável e fácil de manter. Vamos celebrar juntos suas conquistas e também explorar alguns pontos que podem te levar ao próximo nível! 💪✨
+# Feedback para Aloana 🚓✨
 
----
-
-## 🎉 Pontos Fortes que Merecem Destaque
-
-- **Estrutura modular impecável!** Você distribuiu muito bem as responsabilidades entre `routes`, `controllers` e `repositories`. Isso deixa seu código limpo e alinhado com boas práticas.
-- **Validações feitas com carinho:** Vi que você usou a biblioteca `uuid` para validar IDs e o `moment` para validar datas, o que é ótimo para garantir a integridade dos dados.
-- **Tratamento de erros personalizado:** Você já retorna mensagens claras e status HTTP adequados para várias situações, como 400 para dados inválidos e 404 para recursos não encontrados.
-- **Filtros e ordenação nos endpoints:** Implementou filtros por status e agente nos casos, e filtros por nome, cargo e datas nos agentes, com ordenação. Isso mostra que você entendeu bem a importância de endpoints flexíveis.
-- **Bônus conquistados:** Você conseguiu implementar filtros de casos por status e agente, e também fez a ordenação por data de incorporação em agentes — isso é um diferencial! 👏
+Olá, Aloana! Tudo bem? Primeiro, quero te parabenizar pelo esforço e pela entrega da API para o Departamento de Polícia! 🎉 Você conseguiu implementar muitos dos requisitos fundamentais, e isso é um baita passo para dominar o desenvolvimento de APIs com Node.js e Express.js. Vamos juntos analisar seu código para que você possa aprimorar ainda mais seu projeto e alcançar a excelência! 🚀
 
 ---
 
-## 🔎 Análise Detalhada dos Pontos que Precisam de Atenção
+## 🎯 Pontos Fortes — Você mandou muito bem!
 
-### 1. Falhas ao buscar agente inexistente (404) e caso por ID inválido (404)
+- Sua **estrutura de diretórios** está organizada conforme o esperado, com pastas separadas para `routes`, `controllers`, `repositories`, `utils` e `docs`. Isso é fundamental para manter o projeto escalável e fácil de manter. 👏
 
-Você já trata bem o status 400 para IDs inválidos com `uuidValidate`. Porém, percebi que quando você faz a busca por ID e não encontra o recurso, o retorno 404 funciona para agentes:
+- Os endpoints principais para `/agentes` e `/casos` estão implementados com todos os métodos HTTP (GET, POST, PUT, PATCH, DELETE). Você usou o `express.Router()` corretamente para modularizar as rotas.
+
+- A validação básica de dados está presente, com checagem de campos obrigatórios e uso do `uuid` para validar IDs.
+
+- Você implementou filtros e ordenação em alguns endpoints, o que mostra um cuidado extra com a usabilidade da API. Isso é um diferencial!
+
+- Parabéns pelos bônus que você conseguiu: filtro por status e agente em casos, por exemplo. Isso é um ótimo sinal de que você está indo além do básico! 🎉
+
+---
+
+## 🔍 Pontos para melhorar — Vamos destravar juntos!
+
+### 1. Tratamento de erros: o `next` está faltando nos controllers
+
+Ao analisar seus controllers (`agentesController.js` e `casosController.js`), percebi que você usa blocos `try/catch` e chama `next(err)` para passar o erro para o middleware de tratamento, o que é ótimo. Porém, em várias funções, o parâmetro `next` não está declarado, por exemplo:
 
 ```js
-const agente = agentesRepository.findAll().find(a => a.id === id);
-if (agente) {
-    res.json(agente);
-} else {
-    res.status(404).send({ message: "Agente não encontrado" });
+async function getAllAgentes(req, res) {
+    try {
+        // ...
+    } catch (err) {
+        next(err);  // <-- Aqui o next não foi recebido como parâmetro!
+    }
 }
 ```
 
-Mas para casos, você tem:
+Isso vai gerar um erro porque o `next` não está definido no escopo da função. O correto é declarar o `next` como terceiro parâmetro da função:
 
 ```js
-const caso = casosRepository.findAll().find(c => c.id === id);
-if (caso) {
-    res.json(caso);
-} else {
-    res.status(404).send({ message: "Caso não encontrado" });
+async function getAllAgentes(req, res, next) {
+    try {
+        // ...
+    } catch (err) {
+        next(err);
+    }
 }
 ```
 
-Aqui está correto. Então, o problema pode estar em algum detalhe no teste ou em como o ID inválido é passado. Como você já valida o formato do ID, isso está OK.
+Esse detalhe é crucial para que seu middleware de tratamento de erros funcione e retorne os status codes corretos (400, 404, etc). Sem isso, seu servidor pode travar ou retornar erros genéricos. 
 
-**Sugestão:** Certifique-se de que o ID passado no teste ou na requisição realmente não existe no array. Se quiser garantir, pode criar um ID fixo para testes inexistentes e usar ele.
+**Recomendo fortemente revisar todos os seus controllers e garantir que todas as funções que usam `try/catch` recebam o parâmetro `next`.**
 
----
-
-### 2. PATCH em agente com payload inválido (400)
-
-Você tem uma validação bacana no `partialUpdateAgente` para checar se o payload é um objeto não vazio:
-
-```js
-if (!updates || typeof updates !== 'object' || Array.isArray(updates) || Object.keys(updates).length === 0) {
-    return res.status(400).send({ message: "Payload vazio ou inválido" });
-}
-```
-
-Isso está ótimo! Também impede alteração do `id`:
-
-```js
-if ('id' in updates) delete updates.id;
-```
-
-No entanto, as penalidades indicam que você ainda permite alterar o ID do agente via PUT e PATCH. Como isso é um problema grave, vamos focar nisso.
+📚 Para entender melhor o fluxo de middleware e tratamento de erros no Express, veja este vídeo:  
+https://youtu.be/Bn8gcSQH-bc?si=Df4htGoVrV0NR7ri
 
 ---
 
-### 3. Penalidades: Consegue alterar ID do agente com PUT e PATCH, e ID do caso com PUT
+### 2. Validação e alteração indevida do campo `id` nos recursos
 
-**Aqui está o ponto mais crítico!** 🚨
+Você recebeu penalidades porque é possível alterar o campo `id` de agentes e casos via métodos PUT e PATCH, o que não deve acontecer. O `id` é um identificador único e imutável do recurso.
 
-No seu código do controller, você tenta impedir alteração do `id` com:
+No seu código, você tenta proteger isso com:
 
 ```js
 if ('id' in updatedAgente) delete updatedAgente.id;
 ```
 
-No PUT e PATCH para agentes, e similar para casos. Porém, isso só remove a propriedade do objeto que veio no corpo da requisição, mas não impede que o ID original seja substituído ao atualizar o array.
-
-Por exemplo, no `updateAgente`:
+Mas isso só remove o campo do objeto que você recebeu, não impede que o cliente envie o campo no payload. Além disso, no método PATCH para casos, você faz:
 
 ```js
-updatedAgente.id = id; // Você está sobrescrevendo o id que veio no body com o id do path param
-agentesRepository.update(index, updatedAgente);
+Object.assign(casos[index], updates);
+casos[index].id = id;
 ```
 
-Isso é correto e deveria impedir alteração do ID. Então, por que a penalidade?
+Aqui você sobrescreve o objeto diretamente, o que pode permitir que o `id` seja alterado antes da linha que força o id correto. Isso pode gerar inconsistências.
 
-**Hipótese:** Talvez o problema seja que no PATCH, você está fazendo:
+Para evitar isso, sugiro que você:
 
-```js
-const updatedAgente = { ...agente, ...updates, id };
-agentesRepository.update(index, updatedAgente);
-```
+- Valide logo no início do método se o payload contém a propriedade `id` e retorne erro 400 caso sim, ao invés de simplesmente deletar. Isso deixa claro para o cliente que não pode alterar o `id`.
 
-Aqui você também força o `id` correto, o que é ótimo.
-
-Já no `partialUpdateCaso`, você faz:
+Exemplo:
 
 ```js
-Object.assign(caso, updates);
-res.json(caso);
-```
-
-**Aqui está o problema!** Você está alterando o objeto `caso` diretamente com `Object.assign`, mas não está impedindo que o `id` seja alterado, nem está sobrescrevendo o `id` original depois. Além disso, você remove o `id` do `updates` antes, mas não força o `id` original após a atualização.
-
-**Isso pode permitir que o `id` do caso seja alterado via PATCH, o que não pode!**
-
-**Solução para o `partialUpdateCaso`:**
-
-Altere para algo assim:
-
-```js
-if ('id' in updates) delete updates.id;
-
-Object.assign(caso, updates);
-caso.id = id; // força o id original
-res.json(caso);
-```
-
-Assim, o ID do caso não será alterado.
-
----
-
-### 4. Falha ao criar caso com ID de agente inválido/inexistente (404)
-
-No seu `createCaso`, você faz validação correta do agente:
-
-```js
-if (!uuidValidate(newCaso.agente_id)) {
-    return res.status(400).send({ message: "ID do agente inválido" });
-}
-
-const agenteExiste = agentesRepository.findAll().some(a => a.id === newCaso.agente_id);
-if (!agenteExiste) {
-    return res.status(404).send({ message: "Agente responsável não encontrado" });
+if ('id' in req.body) {
+    throw new AppError("Não é permitido alterar o ID do recurso", 400);
 }
 ```
 
-Isso está perfeito! Se você recebe 404 ao criar caso com agente inexistente, é sinal de que o código está correto. Se o teste falha, pode ser por algum detalhe no envio do ID (ex: maiúsculas/minúsculas, espaços).
+- Ao atualizar o objeto, sempre garanta que o `id` do recurso original seja mantido, e não permita mudanças.
 
-**Dica:** Verifique se o ID do agente passado no teste realmente não existe no seu array de agentes. Você pode criar um ID fixo para teste de agente inexistente.
+Esse cuidado evita bugs difíceis de rastrear e mantém a integridade dos seus dados.
+
+📚 Para aprofundar em validação de dados e tratamento de erros, recomendo:  
+https://youtu.be/yNDCRAz7CM8?si=Lh5u3j27j_a4w3A_  
+https://developer.mozilla.org/pt-BR/docs/Web/HTTP/Status/400
 
 ---
 
-### 5. Falhas no filtro de casos por keywords no título/descrição e filtros mais complexos em agentes
+### 3. Filtros e buscas incompletos ou com erros
 
-Você implementou filtro de `keyword` em casos:
+Você implementou filtros legais, mas alguns testes bônus falharam, indicando que:
+
+- O filtro para buscar agente responsável por caso não está funcionando corretamente.
+
+- A filtragem por palavras-chave (`keyword`) em casos não está funcionando como esperado.
+
+- Filtros complexos para agentes por data de incorporação e ordenação também não passaram.
+
+Ao olhar seu código em `casosController.js`:
 
 ```js
 if (keyword) {
@@ -164,90 +126,120 @@ if (keyword) {
 }
 ```
 
-Isso está correto e deveria funcionar.
-
-Já para agentes, o filtro por data de incorporação com sorting tem algumas nuances:
+Está correto, mas você lança erro 404 se não encontrar casos:
 
 ```js
-if (dataDeIncorporacao && !dataInicial && !dataFinal) {
-    agentes = agentes.filter(a => a.dataDeIncorporacao === dataDeIncorporacao);
-}
-
-if (dataInicial || dataFinal) {
-    agentes = agentes.filter(a => {
-        const data = a.dataDeIncorporacao;
-        let after = true, before = true;
-
-        if (dataInicial)
-            after = data >= dataInicial;
-        if (dataFinal)
-            before = data <= dataFinal;
-        return after && before;
-    });
+if (casos.length === 0) {
+    throw new AppError("Nenhum caso encontrado para os filtros aplicados.", 404);
 }
 ```
 
-Aqui, `data` e os parâmetros são strings no formato `"YYYY-MM-DD"`. Comparar strings funciona para datas ISO, mas pode ser mais seguro usar `moment` para comparar datas, evitando erros sutis.
+Esse comportamento pode não ser esperado para filtros; geralmente retornamos um array vazio com status 200 para indicar que a busca foi feita, mas não encontrou resultados. Verifique se essa lógica está alinhada com o que o desafio pede.
 
-**Sugestão:** Use `moment` para comparar datas, por exemplo:
+Além disso, para o filtro por agente responsável, verifique se está usando o campo correto e se o parâmetro de query está sendo tratado de forma consistente (`agente_id`).
+
+No controlador de agentes, o filtro por data usa `moment` corretamente, mas vale revisar se o formato das datas está sempre consistente e se a ordenação está funcionando para todos os campos.
+
+📚 Para entender melhor filtros e ordenação em APIs REST, veja:  
+https://youtu.be/RSZHvQomeKE (parte sobre query params e status codes)  
+https://youtu.be/glSgUKA5LjE?si=t9G2NsC8InYAU9cI (manipulação de arrays)
+
+---
+
+### 4. Validação de payloads incompletos ou mal formatados
+
+Alguns testes indicam que seu código não está retornando 400 para payloads com formato incorreto (por exemplo, um corpo vazio ou sem os campos obrigatórios).
+
+No seu código, você verifica campos obrigatórios, mas não vejo validação explícita para o caso do corpo ser vazio ou não ser um objeto válido.
+
+Exemplo do `createAgente`:
 
 ```js
-const data = moment(a.dataDeIncorporacao, 'YYYY-MM-DD');
-const inicio = dataInicial ? moment(dataInicial, 'YYYY-MM-DD') : null;
-const fim = dataFinal ? moment(dataFinal, 'YYYY-MM-DD') : null;
+const newAgente = req.body;
 
-let after = !inicio || data.isSameOrAfter(inicio, 'day');
-let before = !fim || data.isSameOrBefore(fim, 'day');
-
-return after && before;
+if (!newAgente.nome || !newAgente.dataDeIncorporacao || !newAgente.cargo) {
+    throw new AppError("Dados do agente incompletos", 400);
+}
 ```
 
-Assim você garante que o filtro funcione corretamente em todos os casos.
+Se `req.body` for `undefined` ou não for um objeto, isso pode gerar erros inesperados. Recomendo validar logo no início se o corpo da requisição é um objeto não vazio:
 
----
-
-### 6. Organização do Projeto
-
-Sua estrutura de arquivos está muito boa e condiz com o esperado:
-
-```
-server.js
-routes/
-controllers/
-repositories/
-docs/
-utils/
-package.json
+```js
+if (!newAgente || typeof newAgente !== 'object' || Array.isArray(newAgente) || Object.keys(newAgente).length === 0) {
+    throw new AppError("Payload vazio ou inválido", 400);
+}
 ```
 
-Parabéns por seguir esse padrão! Isso facilita muito a manutenção e escalabilidade do projeto.
+Essa validação deve ser feita em todos os métodos que recebem corpo (POST, PUT, PATCH).
+
+📚 Para aprender mais sobre validação de dados em APIs Node.js, confira:  
+https://youtu.be/yNDCRAz7CM8?si=Lh5u3j27j_a4w3A_
 
 ---
 
-## 💡 Recomendações de Aprendizado para Você
+### 5. Organização do middleware de tratamento de erros no `server.js`
 
-- Para reforçar a validação e tratamento de erros HTTP, recomendo dar uma olhada neste artigo da MDN sobre [Status 400](https://developer.mozilla.org/pt-BR/docs/Web/HTTP/Status/400) e [Status 404](https://developer.mozilla.org/pt-BR/docs/Web/HTTP/Status/404).
-- Para aprofundar no uso de middlewares e roteamento no Express, veja este vídeo super didático: https://youtu.be/RSZHvQomeKE
-- Para entender melhor manipulação de arrays (filter, find, map), que são a base do seu repositório em memória, este vídeo é excelente: https://youtu.be/glSgUKA5LjE?si=t9G2NsC8InYAU9cI
-- Sobre comparação e validação de datas com Moment.js, recomendo revisar a documentação oficial: https://momentjs.com/docs/#/query/is-same-or-after/
+No seu `server.js`, você importa e usa o middleware `errorHandler` da pasta `utils`, o que é ótimo:
+
+```js
+app.use(errorHandler);
+```
+
+Porém, ele está sendo chamado **depois** do `app.listen()`. Isso não é um problema funcional, mas por convenção e clareza, o middleware de erro deve ser registrado **antes** do servidor começar a ouvir as requisições, para garantir que todas as rotas e middlewares estejam configurados.
+
+Sugestão:
+
+```js
+// Rotas e middlewares aqui...
+
+app.use(errorHandler);
+
+app.listen(PORT, () => {
+  console.log(`🚓 Servidor rodando em http://localhost:${PORT}`);
+});
+```
+
+Isso ajuda a evitar confusão e mantém o fluxo do Express mais claro.
 
 ---
 
-## 📝 Resumo dos Principais Pontos para Melhorar
+## 📚 Recursos recomendados para você, Aloana!
 
-- **Impeça alteração do ID dos recursos em todas as operações PUT e PATCH**, especialmente no `partialUpdateCaso` onde o ID pode estar sendo alterado sem restrição. Sempre force o ID do path param após atualizar o objeto.
-- **Use Moment.js para comparar datas no filtro de agentes**, garantindo que filtros por intervalo de datas funcionem corretamente.
-- **Verifique se os IDs usados para testes de inexistência realmente não estão no array**, para garantir que o 404 seja retornado corretamente.
-- **Continue aprimorando as mensagens de erro personalizadas**, tornando a API mais amigável e clara para quem consome.
-- **Mantenha o padrão de arquitetura modular**, que você já está fazendo muito bem!
+- **Express.js Routing e Middleware:**  
+https://expressjs.com/pt-br/guide/routing.html
+
+- **Arquitetura MVC em Node.js:**  
+https://youtu.be/bGN_xNc4A1k?si=Nj38J_8RpgsdQ-QH
+
+- **Validação e tratamento de erros em APIs:**  
+https://developer.mozilla.org/pt-BR/docs/Web/HTTP/Status/400  
+https://developer.mozilla.org/pt-BR/docs/Web/HTTP/Status/404  
+https://youtu.be/yNDCRAz7CM8?si=Lh5u3j27j_a4w3A_
+
+- **Manipulação de Arrays em JavaScript:**  
+https://youtu.be/glSgUKA5LjE?si=t9G2NsC8InYAU9cI
 
 ---
 
-Aloana, você está no caminho certo! 🚀 Seu código mostra que você compreende os conceitos fundamentais de APIs RESTful e Express.js, e com pequenos ajustes, sua API vai ficar ainda mais robusta e profissional. Continue praticando, testando e explorando! Estou aqui torcendo pelo seu sucesso! 🙌💙
+## 📝 Resumo rápido para focar:
 
-Se precisar de qualquer ajuda para entender algum ponto, não hesite em chamar! Vamos juntos nessa jornada de aprendizado! 👩‍💻👨‍💻
+- ✅ Declare o parâmetro `next` em todos os controllers que usam `try/catch` para repassar erros ao middleware.
 
-Um abraço forte e até a próxima revisão! 🤗✨
+- ✅ Impeça que o campo `id` seja modificado via PUT ou PATCH, retornando erro 400 caso o cliente tente.
+
+- ✅ Revise os filtros e buscas para garantir que funcionem conforme esperado e que o retorno para filtros sem resultados seja adequado.
+
+- ✅ Valide o corpo da requisição para garantir que não esteja vazio ou mal formado antes de processar.
+
+- ✅ Ajuste a ordem da chamada do middleware de erro no `server.js` para antes do `app.listen()`.
+
+---
+
+Aloana, você está no caminho certo! Seu projeto já tem uma base muito boa, e com esses ajustes, sua API vai ficar muito mais robusta e profissional. Continue praticando, revisando e testando seu código — a experiência é o que te levará ao próximo nível! 🚀✨
+
+Se precisar de ajuda para implementar alguma dessas correções, pode me chamar! Estou aqui para te ajudar a crescer. 💪😊
+
+Um abraço de Code Buddy! 🤖💙
 
 > Caso queira tirar uma dúvida específica, entre em contato com o Chapter no nosso [discord](https://discord.gg/DryuHVnz).
 
