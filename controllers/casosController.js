@@ -15,6 +15,14 @@ function getAllCasos(req, res) {
         casos = casos.filter(c => c.agente_id === agente_id);
     }
 
+    if (req.query.keyword) {
+        const keyword = req.query.keyword.toLowerCase();
+        casos = casos.filter(c => 
+            c.titulo.toLowerCase().includes(keyword) || 
+            c.descricao.toLowerCase().includes(keyword)
+        );
+    }
+
     if (sortBy) {
         const orderDirection = order === 'desc' ? -1 : 1;
         casos.sort((a, b) => {
@@ -89,7 +97,7 @@ function updateCaso(req, res) {
         return res.status(400).send({ message: "Dados do caso incompletos" });
     }
 
-    if (!statusValidos.includes(newCaso.status.toLowerCase())) {
+    if (!statusValidos.includes(updatedCaso.status.toLowerCase())) {
         return res.status(400).send({ message: "Status inválido. Deve ser 'aberto' ou 'solucionado'" });
     }
 
@@ -127,8 +135,10 @@ function partialUpdateCaso(req, res) {
         return res.status(404).send({ message: "Caso não encontrado" });
     }
 
-    if (!statusValidos.includes(newCaso.status.toLowerCase())) {
-        return res.status(400).send({ message: "Status inválido. Deve ser 'aberto' ou 'solucionado'" });
+    if (updates.status !== undefined) {
+        if (!statusValidos.includes(updates.status.toLowerCase())) {
+            return res.status(400).send({ message: "Status inválido. Deve ser 'aberto' ou 'solucionado'" });
+        }
     }
 
     if ('id' in updates) delete updates.id;

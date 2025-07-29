@@ -5,7 +5,7 @@ const moment = require('moment');
 function getAllAgentes(req, res) {
     let agentes = agentesRepository.findAll();
 
-    const { nome, cargo, sortBy, order } = req.query;
+    const { nome, cargo, dataDeIncorporacao, sortBy, order } = req.query;
 
     if (nome) {
         agentes = agentes.filter(a => a.nome.toLowerCase().includes(nome.toLowerCase()));
@@ -13,6 +13,15 @@ function getAllAgentes(req, res) {
 
     if (cargo) {
         agentes = agentes.filter(a => a.cargo.toLowerCase() === cargo.toLowerCase());
+    }
+
+    if (dataDeIncorporacao) {
+        agentes = agentes.filter(a => a.dataDeIncorporacao === dataDeIncorporacao);
+    }
+
+    if (req.query.sortBy === 'dataDeIncorporacao') {
+        const orderDirection = req.query.order === 'desc' ? -1 : 1;
+        agentes.sort((a, b) => (a.dataDeIncorporacao.localeCompare(b.dataDeIncorporacao)) * orderDirection);
     }
 
     if (sortBy) {
@@ -113,10 +122,10 @@ function partialUpdateAgente(req, res) {
         }
     }
 
-    if (!updates || Object.keys(updates).length === 0) {
+    if (!updates || typeof updates !== 'object' || Array.isArray(updates) || Object.keys(updates).length === 0) {
         return res.status(400).send({ message: "Payload vazio ou inválido" });
     }
-    
+
     if (updates.nome !== undefined && !updates.nome) {
         return res.status(400).send({ message: "Nome inválido" });
     }
@@ -130,6 +139,7 @@ function partialUpdateAgente(req, res) {
         return res.status(404).send({ message: "Agente não encontrado" });
     }
 
+    if ('id' in updates) delete updates.id;
     Object.assign(agente, updates);
     res.json(agente);
 }
