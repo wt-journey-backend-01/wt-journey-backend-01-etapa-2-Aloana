@@ -1,75 +1,79 @@
-const { v4: uuidv4, validate: uuidValidate } = require('uuid');
-const moment = require('moment');
-const { AppError } = require('../utils/errorHandler');
-const agentesRepository = require('../repositories/agentesRepository');
+const agentesRepository = require('../repositories/agentesRepository')
+const { v4: uuidv4 } = require('uuid')
+const handlerError = require('../utils/errorHandler')
 
-async function getAllAgentes(req, res, next) {
+function getAllAgentes(req, res) {
     try {
-        let agentes = agentesRepository.findAll();
-        const { nome, cargo, dataDeIncorporacao, dataInicial, dataFinal, sortBy, order } = req.query;
+        const { cargo, dataDeIncorporacao, orderBy, order } = req.query
+        let agentes = agentesRepository.findAll()
+        const { dataInicio, dataFim } = req.query
 
-        if (nome) {
-            agentes = agentes.filter(a => a.nome.toLowerCase().includes(nome.toLowerCase()));
+        if (dataInicio || dataFim) {
+            agentes = agentes.filter(agente => {
+                const data = new Date(agente.dataDeIncorporacao)
+                const inicio = dataInicio ? new Date(dataInicio) : null
+                const fim = dataFim ? new Date(dataFim) : null
+
+                return (!inicio || data >= inicio) && (!fim || data <= fim)
+            })
         }
+
         if (cargo) {
-            agentes = agentes.filter(a => a.cargo.toLowerCase() === cargo.toLowerCase());
+            const cargosValidos = ['delegado', 'investigador', 'escrivao', 'policial']
+            if (!cargosValidos.includes(cargo.toLowerCase()))
+                return res.status(400).json({ message: `Cargo inválido. Use um dos seguintes valores: ${cargosValidos.join(', ')}` })
+
+            agentes = agentes.filter(agente =>
+                agente.cargo && agente.cargo.toLowerCase() === cargo.toLowerCase()
+            )
         }
-        if (dataDeIncorporacao && !dataInicial && !dataFinal) {
-            agentes = agentes.filter(a => a.dataDeIncorporacao === dataDeIncorporacao);
+
+        if (dataDeIncorporacao) {
+            if (!validarData(dataDeIncorporacao))
+                return res.status(400).json({ message: 'Data de incorporação inválida. Use o formato YYYY-MM-DD e não informe datas futuras.' })
+
+            agentes = agentes.filter(agente => agente.dataDeIncorporacao === dataDeIncorporacao)
         }
-        if (dataInicial || dataFinal) {
-            agentes = agentes.filter(a => {
-                const data = moment(a.dataDeIncorporacao, 'YYYY-MM-DD');
-                const inicio = dataInicial ? moment(dataInicial, 'YYYY-MM-DD') : null;
-                const fim = dataFinal ? moment(dataFinal, 'YYYY-MM-DD') : null;
-                let after = !inicio || data.isSameOrAfter(inicio, 'day');
-                let before = !fim || data.isSameOrBefore(fim, 'day');
-                return after && before;
-            });
+
+        if (order && order !== 'asc' && order !== 'desc') {
+            return res.status(400).json({ message: "Parâmetro 'order' inválido. Use 'asc' ou 'desc'." })
         }
-        if (sortBy) {
-            const orderDirection = order === 'desc' ? -1 : 1;
-            if (sortBy === 'dataDeIncorporacao') {
-                agentes.sort((a, b) => {
-                    const dateA = moment(a.dataDeIncorporacao, 'YYYY-MM-DD');
-                    const dateB = moment(b.dataDeIncorporacao, 'YYYY-MM-DD');
-                    if (!dateA.isValid() || !dateB.isValid()) return 0;
-                    return dateA.isBefore(dateB) ? -1 * orderDirection : dateA.isAfter(dateB) ? 1 * orderDirection : 0;
-                });
-            } else {
-                agentes.sort((a, b) => {
-                    if (!a[sortBy] || !b[sortBy]) return 0;
-                    if (typeof a[sortBy] === 'string') {
-                        return a[sortBy].localeCompare(b[sortBy]) * orderDirection;
-                    }
-                    if (typeof a[sortBy] === 'number') {
-                        return (a[sortBy] - b[sortBy]) * orderDirection;
-                    }
-                    return 0;
-                });
+
+        if (orderBy) {
+            const camposValidos = ['nome', 'dataDeIncorporacao', 'cargo']
+            if (!camposValidos.includes(orderBy)) {
+                return res.status(400).json({ message: `Campo para ordenação inválido. Use: ${camposValidos.join(', ')}` })
             }
+
+            agentes.sort((a, b) => {
+                const ordem = order === 'desc' ? -1 : 1
+                if (a[orderBy] < b[orderBy]) return -1 * ordem
+                if (a[orderBy] > b[orderBy]) return 1 * ordem
+                return 0
+            })
         }
-        res.json(agentes);
+
+        res.status(200).json(agentes)
     } catch (error) {
-        next(error);
+        handlerError(res, error)
     }
 }
 
-async function getAgenteById(req, res, next) {
+function getAgenteById(req, res) {
     try {
         const { id } = req.params
-        const agente = agentesRepository.findById(id)
+        const agente = agentesRepository.getAgenteById(id)
 
         if (!agente)
             return res.status(404).json({ message: 'Agente não encontrado.' })
 
         res.status(200).json(agente)
     } catch (error) {
-        next(error);
+        handlerError(res, error)
     }
 }
 
-async function createAgente(req, res, next) {
+function createAgente(req, res) {
     try {
         const { nome, dataDeIncorporacao, cargo } = req.body
         const id = uuidv4()
@@ -85,11 +89,11 @@ async function createAgente(req, res, next) {
         agentesRepository.create(newAgente)
         res.status(201).json(newAgente)
     } catch (error) {
-        next(error);
+        handlerError(res, error)
     }
 }
 
-async function updateAgente(req, res, next) {
+function updateAgente(req, res) {
     try {
         const { id } = req.params
         const { nome, dataDeIncorporacao, cargo, id: idBody } = req.body
@@ -97,12 +101,8 @@ async function updateAgente(req, res, next) {
         if(idBody && idBody !== id)
             return res.status(400).json({message: "O campo 'id' não pode ser alterado."})
 
-        if (dataDeIncorporacao) {
-            const dataIncorporacao = moment(dataDeIncorporacao, 'YYYY-MM-DD', true);
-            if (!dataIncorporacao.isValid() || dataIncorporacao.isAfter(moment(), 'day')) {
-                throw new AppError("Campo 'dataDeIncorporacao' inválido. Use formato YYYY-MM-DD e não informe datas futuras.", 400);
-            }
-        }
+        if (!validarData(dataDeIncorporacao))
+            return res.status(400).json({ message: 'Data de incorporação inválida. Use o formato YYYY-MM-DD e não informe datas futuras.' })
 
         if (!nome || !dataDeIncorporacao || !cargo)
             return res.status(400).json({ message: 'Todos os campos são obrigatórios.' })
@@ -114,11 +114,11 @@ async function updateAgente(req, res, next) {
 
         res.status(200).json(agenteAtualizado)
     } catch (error) {
-        next(error);
+        handlerError(res, error)
     }
 }
 
-async function partialUpdateAgente(req, res, next) {
+function partialUpdateAgente(req, res) {
     try {
         const { id } = req.params
         const updates = req.body
@@ -142,24 +142,39 @@ async function partialUpdateAgente(req, res, next) {
 
         res.status(200).json(patchedAgente)
     } catch (error) {
-        next(error);
+        handlerError(res, error)
     }
 }
 
-async function deleteAgente(req, res, next) {
+function deleteAgente(req, res) {
     try {
-        const id = req.params.id;
+        const { id } = req.params
+        const agente = agentesRepository.getAgenteById(id)
 
-        if (!uuidValidate(id)) throw new AppError("ID inválido", 400);
+        if (!agente)
+            return res.status(404).json({ message: 'Agente não encontrado.' })
 
-        const index = agentesRepository.findAll().findIndex(a => a.id === id);
-        if (index === -1) throw new AppError("Agente não encontrado", 404);
-
-        agentesRepository.remove(index);
-        res.status(204).send();
+        agentesRepository.deleteById(id)
+        res.status(204).send()
     } catch (error) {
-        next(error);
+        handlerError(res, error)
     }
+}
+
+function validarData(dateString) {
+    const regex = /^\d{4}-\d{2}-\d{2}$/
+
+    if (!regex.test(dateString)) return false
+
+    const date = new Date(dateString)
+    const today = new Date()
+
+    if (isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== dateString)
+        return false
+
+    if (date > today) return false
+
+    return true
 }
 
 module.exports = {
@@ -169,4 +184,4 @@ module.exports = {
     updateAgente,
     partialUpdateAgente,
     deleteAgente
-};
+}

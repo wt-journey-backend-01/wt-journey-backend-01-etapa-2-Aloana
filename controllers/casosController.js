@@ -1,151 +1,151 @@
-const casosRepository = require("../repositories/casosRepository");
-const agentesRepository = require("../repositories/agentesRepository");
-const { v4: uuidv4, validate: uuidValidate } = require('uuid');
-const { AppError } = require("../utils/errorHandler");
-const moment = require('moment');
+const casosRepository = require("../repositories/casosRepository")
+const agentesRepository = require("../repositories/agentesRepository")
+const { v4: uuidv4 } = require('uuid')
+const handlerError = require('../utils/errorHandler')
 
-async function getAllCasos(req, res, next) {
+function getAllCasos(req, res) {
     try {
-        let casos = casosRepository.findAll();
+        const { status, agente_id, search, orderBy, order } = req.query
+        let casos = casosRepository.findAll()
 
-        const { status, agente_id, sortBy, order, keyword } = req.query;
+        if (search) {
+            const termo = search.toLowerCase()
+            casos = casos.filter(caso =>
+                caso.titulo.toLowerCase().includes(termo) ||
+                caso.descricao.toLowerCase().includes(termo)
+            )
+        }
 
         if (status) {
-            casos = casos.filter(c =>
-                c.status && c.status.toLowerCase() === status.toLowerCase()
-            );
+            const statusValidos = ['aberto', 'solucionado']
+            if (!statusValidos.includes(status))
+                return res.status(400).json({ message: "O status do caso deve ser 'aberto' ou 'solucionado'." })
+
+            casos = casos.filter(caso => caso.status === status)
         }
 
         if (agente_id) {
-            casos = casos.filter(c =>
-                c.agente_id && c.agente_id === agente_id
-            );
+            if (!agentesRepository.findById(agente_id))
+                return res.status(404).json({ message: "Agente não encontrado com o agente_id fornecido." })
+
+            casos = casos.filter(caso => caso.agente_id === agente_id)
         }
 
-        if (keyword) {
-            const kw = keyword.toLowerCase();
-            casos = casos.filter(c =>
-                (c.titulo && c.titulo.toLowerCase().includes(kw)) ||
-                (c.descricao && c.descricao.toLowerCase().includes(kw))
-            );
+        if (orderBy) {
+            const camposValidos = ['titulo', 'status', 'agente_id']
+            if (!camposValidos.includes(orderBy))
+                return res.status(400).json({
+                    message: `Campo para ordenação inválido. Use: ${camposValidos.join(', ')}.`
+                })
+
+            casos.sort((a, b) => {
+                const ordem = order === 'desc' ? -1 : 1
+                if (a[orderBy] < b[orderBy]) return -1 * ordem
+                if (a[orderBy] > b[orderBy]) return 1 * ordem
+                return 0
+            })
         }
 
-        if (sortBy) {
-            const orderDirection = order === 'desc' ? -1 : 1;
-            if (sortBy === 'dataDeAbertura' || sortBy === 'dataDeFechamento') {
-                casos.sort((a, b) => {
-                    const dateA = moment(a[sortBy], 'YYYY-MM-DD');
-                    const dateB = moment(b[sortBy], 'YYYY-MM-DD');
-                    if (!dateA.isValid() || !dateB.isValid()) return 0;
-                    return dateA.isBefore(dateB) ? -1 * orderDirection : dateA.isAfter(dateB) ? 1 * orderDirection : 0;
-                });
-            } else {
-                casos.sort((a, b) => {
-                    if (!a[sortBy] || !b[sortBy]) return 0;
-                    if (typeof a[sortBy] === 'string') {
-                        return a[sortBy].localeCompare(b[sortBy]) * orderDirection;
-                    }
-                    if (typeof a[sortBy] === 'number') {
-                        return (a[sortBy] - b[sortBy]) * orderDirection;
-                    }
-                    return 0;
-                });
-            }
+        if (order && order !== 'asc' && order !== 'desc') {
+            return res.status(400).json({ message: "Parâmetro 'order' inválido. Use 'asc' ou 'desc'." })
         }
 
-        res.json(casos);
+        const casosComMesmoAgente = casos.map(caso => ({
+            ...caso,
+            agente: agentesRepository.findById(caso.agente_id)
+        }))
+
+        res.status(200).json(casosComMesmoAgente)
     } catch (error) {
-        next(error);
+        handlerError(res, error)
     }
 }
 
-async function getCasoById(req, res, next) {
+function gatCasoById(req, res) {
     try {
         const { id } = req.params
-        const caso = casosRepository.findById(id)
+        const caso = casosRepository.gatCasoById(id)
 
         if (!caso)
             return res.status(404).json({ message: "Caso não encontrado." })
 
-        const agente = agentesRepository.findById(caso.agente_id)
+        const agente = agentesRepository.getAgenteById(caso.agente_id)
 
         res.status(200).json({
             ...caso,
             agente
         })
     } catch (error) {
-        next(error);
+        handlerError(res, error)
     }
 }
 
-async function createCaso(req, res, next) {
+function createCase(req, res) {
     try {
-        const newCaso = req.body;
-        const statusValidos = ['aberto', 'solucionado'];
+        const { titulo, descricao, status, agente_id } = req.body
+        const id = uuidv4()
+        const agenteExistente = agentesRepository.findById(agente_id)
 
-        if (!newCaso || typeof newCaso !== 'object' || Array.isArray(newCaso) || Object.keys(newCaso).length === 0) {
-            throw new AppError("Payload vazio ou inválido", 400);
-        }
-        if ('id' in newCaso) {
-            throw new AppError("Não é permitido fornecer o campo 'id' ao criar caso", 400);
-        }
-        if (!newCaso.titulo || !newCaso.descricao || !newCaso.status || !newCaso.agente_id) {
-            throw new AppError("Dados do caso incompletos", 400);
-        }
-        if (!statusValidos.includes(newCaso.status.toLowerCase())) {
-            throw new AppError("Status inválido. Deve ser 'aberto' ou 'solucionado'", 400);
-        }
-        if (!uuidValidate(newCaso.agente_id)) {
-            throw new AppError("ID do agente inválido", 400);
-        }
-        const agenteExiste = agentesRepository.findAll().some(a => a.id === newCaso.agente_id);
-        if (!agenteExiste) {
-            throw new AppError("Agente responsável não encontrado", 404);
-        }
+        if (typeof titulo !== 'string')
+            return res.status(400).json({ message: "O título deve ser uma string." })
 
-        newCaso.id = uuidv4();
-        casosRepository.add(newCaso);
-        res.status(201).json(newCaso);
+        if (typeof descricao !== 'string')
+            return res.status(400).json({ message: "A descrição deve ser uma string." })
+
+        if (!agenteExistente)
+            return res.status(404).json({ message: "Agente não encontrado com o agente_id fornecido." })
+
+        if (!titulo || !descricao || !status || !agente_id)
+            return res.status(400).json({ message: "Todos os campos são obrigatórios." })
+
+        if (status !== "aberto" && status !== "solucionado")
+            return res.status(400).json({ message: "O status do caso deve ser 'aberto' ou 'solucionado'." })
+
+        const newCase = { id, titulo, descricao, status, agente_id }
+        casosRepository.create(newCase)
+
+        res.status(201).json(newCase)
     } catch (error) {
-        next(error);
+        handlerError(res, error)
     }
 }
 
-async function updateCaso(req, res, next) {
+function updateCase(req, res) {
     try {
-        const id = req.params.id;
-        const updatedCaso = req.body;
-        const statusValidos = ['aberto', 'solucionado'];
+        const { id } = req.params
+        const { id: idBody, titulo, descricao, status, agente_id } = req.body
+        const agenteExistente = agentesRepository.findById(agente_id)
 
-        if (!uuidValidate(id)) throw new AppError("ID inválido", 400);
-        if (!updatedCaso || typeof updatedCaso !== 'object' || Array.isArray(updatedCaso) || Object.keys(updatedCaso).length === 0) {
-            throw new AppError("Payload vazio ou inválido", 400);
-        }
-        if ('id' in updatedCaso) throw new AppError("Não é permitido alterar o campo 'id'", 400);
-        if (!updatedCaso.titulo || !updatedCaso.descricao || !updatedCaso.status || !updatedCaso.agente_id) {
-            throw new AppError("Dados do caso incompletos", 400);
-        }
-        if (!statusValidos.includes(updatedCaso.status.toLowerCase())) {
-            throw new AppError("Status inválido. Deve ser 'aberto' ou 'solucionado'", 400);
-        }
-        if (!uuidValidate(updatedCaso.agente_id)) {
-            throw new AppError("ID do agente inválido", 400);
-        }
-        const agenteExiste = agentesRepository.findAll().some(a => a.id === updatedCaso.agente_id);
-        if (!agenteExiste) throw new AppError("Agente responsável não encontrado", 404);
+        if(idBody && idBody !== id)
+            return res.status(400).json({message: "O campo 'id' não pode ser alterado."})
 
-        const index = casosRepository.findAll().findIndex(c => c.id === id);
-        if (index === -1) throw new AppError("Caso não encontrado", 404);
+        if (typeof titulo !== 'string')
+            return res.status(400).json({ message: "O título deve ser uma string." })
 
-        updatedCaso.id = id;
-        casosRepository.update(index, updatedCaso);
-        res.status(200).json(updatedCaso);
+        if (typeof descricao !== 'string')
+            return res.status(400).json({ message: "A descrição deve ser uma string." })
+
+        if (!agenteExistente)
+            return res.status(404).json({ message: "Agente não encontrado com o agente_id fornecido." })
+
+        if (!titulo || !descricao || !status || !agente_id)
+            return res.status(400).json({ message: "Todos os campos são obrigatórios." })
+
+        if (status !== "aberto" && status !== "solucionado")
+            return res.status(400).json({ message: "O status do caso deve ser 'aberto' ou 'solucionado'." })
+
+        const updatedCase = casosRepository.update(id, titulo, descricao, status, agente_id)
+
+        if (!updatedCase)
+            return res.status(404).json({ message: "Caso não encontrado." })
+
+        res.status(200).json(updatedCase)
     } catch (error) {
-        next(error);
+        handlerError(res, error)
     }
 }
 
-async function partialUpdateCaso(req, res, next) {
+function partialUpdadeCasos(req, res) {
     try {
         const { id } = req.params
         const updates = req.body
@@ -176,40 +176,37 @@ async function partialUpdateCaso(req, res, next) {
                 return res.status(404).json({ message: "Agente não encontrado com o agente_id fornecido." })
         }
 
-        const updatedCase = casosRepository.partialUpdateCaso(id, updates)
+        const updatedCase = casosRepository.partialUpdadeCasos(id, updates)
 
         if (!updatedCase)
             return res.status(404).json({ message: "Caso não encontrado." })
 
         res.status(200).json(updatedCase)
     } catch (error) {
-        next(error);
+        handlerError(res, error)
     }
 }
 
-async function removeCaso(req, res, next) {
+function deleteCase(req, res) {
     try {
-        const id = req.params.id;
+        const { id } = req.params
+        const casoDeletado = casosRepository.findById(id)
 
-        if (!uuidValidate(id))
-            throw new AppError("ID inválido", 400);
+        if (!casoDeletado)
+            return res.status(404).json({ message: "Caso não encontrado." })
 
-        const index = casosRepository.findAll().findIndex(c => c.id === id);
-        if (index === -1)
-            throw new AppError("Caso não encontrado", 404);
-
-        casosRepository.remove(index);
-        res.status(204).send();
+        casosRepository.deleteById(id)
+        res.status(204).send()
     } catch (error) {
-        next(error);
+        handlerError(res, error)
     }
 }
 
 module.exports = {
     getAllCasos,
-    getCasoById,
-    createCaso,
-    updateCaso,
-    partialUpdateCaso,
-    removeCaso
-};
+    gatCasoById,
+    createCase,
+    updateCase,
+    deleteCase,
+    partialUpdadeCasos
+}

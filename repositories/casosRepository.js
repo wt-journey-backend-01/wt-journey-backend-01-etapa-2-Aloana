@@ -88,7 +88,7 @@ function remove(index) {
     casos.splice(index, 1);
 }
 
-function findById(id){
+function gatCasoById(id){
     return casos.find(caso => caso.id === id)
 }
 
@@ -110,6 +110,6 @@ module.exports = {
     add,
     update,
     remove,
-    findById,
+    gatCasoById,
     partialUpdateCaso
 }

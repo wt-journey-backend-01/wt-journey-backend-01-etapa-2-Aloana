@@ -81,7 +81,7 @@ function remove(index) {
     agentes.splice(index, 1);
 }
 
-function findById(id) {
+function getAgenteById(id) {
     return agentes.find(agente => agente.id === id) 
 }
 
@@ -106,6 +106,6 @@ module.exports = {
     add,
     update,
     remove,
-    findById,
+    getAgenteById,
     partialUpdateAgente
 }
