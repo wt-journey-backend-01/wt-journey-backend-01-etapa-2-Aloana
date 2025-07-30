@@ -57,13 +57,19 @@ async function getAllAgentes(req, res, next) {
 
 async function getAgenteById(req, res, next) {
     try {
-        const id = req.params.id;
-        if (!uuidValidate(id)) throw new AppError("ID inválido", 400);
+        const { id } = req.params;
+
+        if (!uuidValidate(id)) {
+            throw new AppError("ID inválido", 400);
+        }
 
         const agente = agentesRepository.findAll().find(a => a.id === id);
-        if (!agente) throw new AppError("Agente não encontrado", 404);
 
-        res.json(agente);
+        if (!agente) {
+            throw new AppError("Agente não encontrado", 404);
+        }
+
+        res.status(200).json(agente);
     } catch (error) {
         next(error);
     }
@@ -138,15 +144,13 @@ async function partialUpdateAgente(req, res, next) {
             throw new AppError("Payload vazio ou inválido", 400);
         }
 
-        if ('id' in updates) {
-            throw new AppError("Não é permitido alterar o campo 'id'", 400);
-        }
+        if ('id' in updates) throw new AppError("Não é permitido alterar o campo 'id'", 400);
 
         const camposValidos = ['nome', 'dataDeIncorporacao', 'cargo'];
         const camposAtualizados = Object.keys(updates);
+        const camposAtualizaveis = camposAtualizados.filter(campo => camposValidos.includes(campo));
 
-        const camposValidosAtualizados = camposAtualizados.filter(campo => camposValidos.includes(campo));
-        if (camposValidosAtualizados.length === 0) {
+        if (camposAtualizaveis.length === 0) {
             throw new AppError("Deve conter pelo menos um campo válido para atualização", 400);
         }
 
@@ -159,7 +163,7 @@ async function partialUpdateAgente(req, res, next) {
         if ('cargo' in updates) {
             const cargosValidos = ['delegado', 'investigador', 'escrivao', 'policial'];
             if (typeof updates.cargo !== 'string' || !cargosValidos.includes(updates.cargo.toLowerCase())) {
-                throw new AppError(`Campo 'cargo' inválido. Use um dos seguintes valores: ${cargosValidos.join(', ')}`, 400);
+                throw new AppError(`Campo 'cargo' inválido. Use: ${cargosValidos.join(', ')}`, 400);
             }
         }
 
@@ -172,13 +176,17 @@ async function partialUpdateAgente(req, res, next) {
 
         const agentes = agentesRepository.findAll();
         const index = agentes.findIndex(a => a.id === id);
-        if (index === -1) throw new AppError("Agente não encontrado", 404);
+
+        if (index === -1) {
+            throw new AppError("Agente não encontrado", 404);
+        }
 
         const agente = agentes[index];
-        const updatedAgente = { ...agente, ...updates, id };
 
+        const updatedAgente = { ...agente, ...updates, id };
         agentesRepository.update(index, updatedAgente);
-        res.json(updatedAgente);
+
+        res.status(200).json(updatedAgente);
     } catch (error) {
         next(error);
     }

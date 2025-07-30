@@ -63,12 +63,16 @@ async function getCasoById(req, res, next) {
     try {
         const id = req.params.id;
 
-        if (!uuidValidate(id)) throw new AppError("ID inválido", 400);
+        if (!uuidValidate(id)) {
+            throw new AppError("ID inválido", 400);
+        }
 
         const caso = casosRepository.findAll().find(c => c.id === id);
-        if (!caso) throw new AppError("Caso não encontrado", 404);
+        if (!caso) {
+            throw new AppError("Caso não encontrado", 404);
+        }
 
-        res.json(caso);
+        res.status(200).json(caso);
     } catch (error) {
         next(error);
     }
@@ -83,7 +87,9 @@ async function createCaso(req, res, next) {
             throw new AppError("Payload vazio ou inválido", 400);
         }
 
-        if ('id' in newCaso) throw new AppError("Não é permitido fornecer o campo 'id' ao criar caso", 400);
+        if ('id' in newCaso) {
+            throw new AppError("Não é permitido fornecer o campo 'id' ao criar caso", 400);
+        }
 
         if (!newCaso.titulo || !newCaso.descricao || !newCaso.status || !newCaso.agente_id) {
             throw new AppError("Dados do caso incompletos", 400);
@@ -98,10 +104,13 @@ async function createCaso(req, res, next) {
         }
 
         const agenteExiste = agentesRepository.findAll().some(a => a.id === newCaso.agente_id);
-        if (!agenteExiste) throw new AppError("Agente responsável não encontrado", 404);
+        if (!agenteExiste) {
+            throw new AppError("Agente responsável não encontrado", 404);
+        }
 
         newCaso.id = uuidv4();
         casosRepository.add(newCaso);
+
         res.status(201).json(newCaso);
     } catch (error) {
         next(error);
@@ -115,29 +124,40 @@ async function updateCaso(req, res, next) {
         const statusValidos = ['aberto', 'solucionado'];
 
         if (!uuidValidate(id)) throw new AppError("ID inválido", 400);
+
         if (!updatedCaso || typeof updatedCaso !== 'object' || Array.isArray(updatedCaso) || Object.keys(updatedCaso).length === 0) {
             throw new AppError("Payload vazio ou inválido", 400);
         }
-        if ('id' in updatedCaso) throw new AppError("Não é permitido alterar o campo 'id'", 400);
+
+        if ('id' in updatedCaso) {
+            throw new AppError("Não é permitido alterar o campo 'id'", 400);
+        }
 
         if (!updatedCaso.titulo || !updatedCaso.descricao || !updatedCaso.status || !updatedCaso.agente_id) {
             throw new AppError("Dados do caso incompletos", 400);
         }
+
         if (!statusValidos.includes(updatedCaso.status.toLowerCase())) {
             throw new AppError("Status inválido. Deve ser 'aberto' ou 'solucionado'", 400);
         }
+
         if (!uuidValidate(updatedCaso.agente_id)) {
             throw new AppError("ID do agente inválido", 400);
         }
 
         const agenteExiste = agentesRepository.findAll().some(a => a.id === updatedCaso.agente_id);
-        if (!agenteExiste) throw new AppError("Agente responsável não encontrado", 404);
+        if (!agenteExiste) {
+            throw new AppError("Agente responsável não encontrado", 404);
+        }
 
         const index = casosRepository.findAll().findIndex(c => c.id === id);
-        if (index === -1) throw new AppError("Caso não encontrado", 404);
+        if (index === -1) {
+            throw new AppError("Caso não encontrado", 404);
+        }
 
         updatedCaso.id = id;
         casosRepository.update(index, updatedCaso);
+
         res.json(updatedCaso);
     } catch (error) {
         next(error);
@@ -148,22 +168,70 @@ async function partialUpdateCaso(req, res, next) {
     try {
         const id = req.params.id;
         const updates = req.body;
+        const statusValidos = ['aberto', 'solucionado'];
 
-        if (!uuidValidate(id)) throw new AppError("ID inválido", 400);
+        if (!uuidValidate(id)) {
+            throw new AppError("ID inválido", 400);
+        }
+
         if (!updates || typeof updates !== 'object' || Array.isArray(updates) || Object.keys(updates).length === 0) {
             throw new AppError("Payload vazio ou inválido", 400);
         }
-        if ('id' in updates) throw new AppError("Não é permitido alterar o campo 'id'", 400);
+
+        if ('id' in updates) {
+            throw new AppError("Não é permitido alterar o campo 'id'", 400);
+        }
 
         const casos = casosRepository.findAll();
         const index = casos.findIndex(c => c.id === id);
-        if (index === -1) throw new AppError("Caso não encontrado", 404);
+        if (index === -1) {
+            throw new AppError("Caso não encontrado", 404);
+        }
 
-        Object.assign(casos[index], updates);
-        casos[index].id = id;
+        const camposValidos = ['titulo', 'descricao', 'status', 'agente_id', 'dataDeAbertura', 'dataDeFechamento'];
+        const camposAtualizados = Object.keys(updates);
+        const camposInvalidos = camposAtualizados.filter(campo => !camposValidos.includes(campo));
+        if (camposInvalidos.length > 0) {
+            throw new AppError(`Campos inválidos para atualização: ${camposInvalidos.join(', ')}`, 400);
+        }
 
-        casosRepository.update(index, casos[index]);
-        res.json(casos[index]);
+        if ('status' in updates) {
+            if (!statusValidos.includes(updates.status.toLowerCase())) {
+                throw new AppError("Status inválido. Deve ser 'aberto' ou 'solucionado'", 400);
+            }
+        }
+
+        if ('agente_id' in updates) {
+            if (!uuidValidate(updates.agente_id)) {
+                throw new AppError("ID do agente inválido", 400);
+            }
+            const agenteExiste = agentesRepository.findAll().some(a => a.id === updates.agente_id);
+            if (!agenteExiste) {
+                throw new AppError("Agente responsável não encontrado", 404);
+            }
+        }
+
+        if ('dataDeAbertura' in updates) {
+            const dataAbertura = moment(updates.dataDeAbertura, 'YYYY-MM-DD', true);
+            if (!dataAbertura.isValid() || dataAbertura.isAfter(moment(), 'day')) {
+                throw new AppError("Data de abertura inválida ou futura", 400);
+            }
+        }
+
+        if ('dataDeFechamento' in updates) {
+            const dataFechamento = moment(updates.dataDeFechamento, 'YYYY-MM-DD', true);
+            if (!dataFechamento.isValid() || dataFechamento.isAfter(moment(), 'day')) {
+                throw new AppError("Data de fechamento inválida ou futura", 400);
+            }
+        }
+
+        const casoOriginal = casos[index];
+        const casoAtualizado = { ...casoOriginal, ...updates, id };
+
+        casosRepository.update(index, casoAtualizado);
+
+        res.status(200).json(casoAtualizado);
+
     } catch (error) {
         next(error);
     }
