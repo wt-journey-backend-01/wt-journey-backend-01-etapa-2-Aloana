@@ -134,22 +134,41 @@ async function partialUpdateAgente(req, res, next) {
 
         if (!uuidValidate(id)) throw new AppError("ID inválido", 400);
 
-        if (!updates || typeof updates !== 'object' || Array.isArray(updates) || Object.keys(updates).length === 0)
+        if (!updates || typeof updates !== 'object' || Array.isArray(updates) || Object.keys(updates).length === 0) {
             throw new AppError("Payload vazio ou inválido", 400);
-
-        if ('id' in updates)
-            throw new AppError("Não é permitido alterar o campo 'id'", 400);
-
-        if (updates.dataDeIncorporacao) {
-            const dataIncorporacao = moment(updates.dataDeIncorporacao, 'YYYY-MM-DD', true);
-            if (!dataIncorporacao.isValid() || dataIncorporacao.isAfter(moment(), 'day'))
-                throw new AppError("Data de incorporação inválida ou futura", 400);
         }
 
-        if (updates.nome !== undefined && !updates.nome)
-            throw new AppError("Nome inválido", 400);
-        if (updates.cargo !== undefined && !updates.cargo)
-            throw new AppError("Cargo inválido", 400);
+        if ('id' in updates) {
+            throw new AppError("Não é permitido alterar o campo 'id'", 400);
+        }
+
+        const camposValidos = ['nome', 'dataDeIncorporacao', 'cargo'];
+        const camposAtualizados = Object.keys(updates);
+
+        const camposValidosAtualizados = camposAtualizados.filter(campo => camposValidos.includes(campo));
+        if (camposValidosAtualizados.length === 0) {
+            throw new AppError("Deve conter pelo menos um campo válido para atualização", 400);
+        }
+
+        if ('nome' in updates) {
+            if (typeof updates.nome !== 'string' || !updates.nome.trim()) {
+                throw new AppError("Campo 'nome' inválido", 400);
+            }
+        }
+
+        if ('cargo' in updates) {
+            const cargosValidos = ['delegado', 'investigador', 'escrivao', 'policial'];
+            if (typeof updates.cargo !== 'string' || !cargosValidos.includes(updates.cargo.toLowerCase())) {
+                throw new AppError(`Campo 'cargo' inválido. Use um dos seguintes valores: ${cargosValidos.join(', ')}`, 400);
+            }
+        }
+
+        if ('dataDeIncorporacao' in updates) {
+            const dataIncorporacao = moment(updates.dataDeIncorporacao, 'YYYY-MM-DD', true);
+            if (!dataIncorporacao.isValid() || dataIncorporacao.isAfter(moment(), 'day')) {
+                throw new AppError("Campo 'dataDeIncorporacao' inválido. Use formato YYYY-MM-DD e não informe datas futuras.", 400);
+            }
+        }
 
         const agentes = agentesRepository.findAll();
         const index = agentes.findIndex(a => a.id === id);
@@ -159,7 +178,6 @@ async function partialUpdateAgente(req, res, next) {
         const updatedAgente = { ...agente, ...updates, id };
 
         agentesRepository.update(index, updatedAgente);
-
         res.json(updatedAgente);
     } catch (error) {
         next(error);
