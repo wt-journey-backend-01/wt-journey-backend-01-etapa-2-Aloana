@@ -61,7 +61,7 @@ function getAllCasos(req, res) {
     }
 }
 
-function gatCasoById(req, res) {
+function getCasoById(req, res) {
     try {
         const { id } = req.params
         const caso = casosRepository.gatCasoById(id)
@@ -80,7 +80,7 @@ function gatCasoById(req, res) {
     }
 }
 
-function createCase(req, res) {
+function createCaso(req, res) {
     try {
         const { titulo, descricao, status, agente_id } = req.body
         const id = uuidv4()
@@ -110,7 +110,7 @@ function createCase(req, res) {
     }
 }
 
-function updateCase(req, res) {
+function updateCaso(req, res) {
     try {
         const { id } = req.params
         const { id: idBody, titulo, descricao, status, agente_id } = req.body
@@ -145,7 +145,7 @@ function updateCase(req, res) {
     }
 }
 
-function partialUpdadeCasos(req, res) {
+function partialUpdadeCaso(req, res) {
     try {
         const { id } = req.params
         const updates = req.body
@@ -187,7 +187,7 @@ function partialUpdadeCasos(req, res) {
     }
 }
 
-function deleteCase(req, res) {
+function deleteCaso(req, res) {
     try {
         const { id } = req.params
         const casoDeletado = casosRepository.findById(id)
@@ -204,9 +204,9 @@ function deleteCase(req, res) {
 
 module.exports = {
     getAllCasos,
-    gatCasoById,
-    createCase,
-    updateCase,
-    deleteCase,
-    partialUpdadeCasos
+    getCasoById,
+    createCaso,
+    updateCaso,
+    deleteCaso,
+    partialUpdadeCaso
 }
