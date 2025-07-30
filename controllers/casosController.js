@@ -138,63 +138,45 @@ async function updateCaso(req, res, next) {
     }
 }
 
-async function partialUpdateCaso(req, res, next) {
+async function partialUpdateCaso(req, res) {
     try {
-        const id = req.params.id;
-        const updates = req.body;
-        const statusValidos = ['aberto', 'solucionado'];
+        const { id } = req.params
+        const updates = req.body
+        const camposValidos = ['titulo', 'descricao', 'status', 'agente_id']
 
-        if (!uuidValidate(id)) throw new AppError("ID inválido", 400);
-        if (!updates || typeof updates !== 'object' || Array.isArray(updates) || Object.keys(updates).length === 0) {
-            throw new AppError("Payload vazio ou inválido", 400);
-        }
-        if ('id' in updates) throw new AppError("Não é permitido alterar o campo 'id'", 400);
+        if('id' in updates)
+            return res.status(400).json({message: "O campo 'id' não pode ser alterado."})
 
-        const casos = casosRepository.findAll();
-        const index = casos.findIndex(c => c.id === id);
-        if (index === -1) throw new AppError("Caso não encontrado", 404);
+        const camposAtualizaveis = Object.keys(updates).filter(campo => {
+            return camposValidos.includes(campo)
+        })
 
-        // Valida campos permitidos para atualização parcial
-        const camposValidos = ['titulo', 'descricao', 'status', 'agente_id', 'dataDeAbertura', 'dataDeFechamento'];
-        const camposAtualizados = Object.keys(updates);
-        const camposInvalidos = camposAtualizados.filter(campo => !camposValidos.includes(campo));
-        if (camposInvalidos.length > 0) {
-            throw new AppError(`Campos inválidos para atualização: ${camposInvalidos.join(', ')}`, 400);
-        }
+        if (updates.titulo && typeof updates.titulo !== 'string')
+            return res.status(400).json({ message: "O título deve ser uma string." })
 
-        if ('status' in updates && !statusValidos.includes(updates.status.toLowerCase())) {
-            throw new AppError("Status inválido. Deve ser 'aberto' ou 'solucionado'", 400);
-        }
+        if (updates.descricao && typeof updates.descricao !== 'string')
+            return res.status(400).json({ message: "A descrição deve ser uma string." })
 
-        if ('agente_id' in updates) {
-            if (!uuidValidate(updates.agente_id)) {
-                throw new AppError("ID do agente inválido", 400);
-            }
-            const agenteExiste = agentesRepository.findAll().some(a => a.id === updates.agente_id);
-            if (!agenteExiste) {
-                throw new AppError("Agente responsável não encontrado", 404);
-            }
+        if (camposAtualizaveis.length === 0)
+            return res.status(400).json({ message: "Deve conter pelo menos um campo para atualização." })
+
+        if (updates.status && updates.status !== "aberto" && updates.status !== "solucionado")
+            return res.status(400).json({ message: "O status do caso deve ser 'aberto' ou 'solucionado'." })
+
+        if (updates.agente_id) {
+            const agenteExistente = agentesRepository.findById(updates.agente_id)
+            if (!agenteExistente)
+                return res.status(404).json({ message: "Agente não encontrado com o agente_id fornecido." })
         }
 
-        if ('dataDeAbertura' in updates) {
-            if (!moment(updates.dataDeAbertura, 'YYYY-MM-DD', true).isValid() || moment(updates.dataDeAbertura).isAfter(moment())) {
-                throw new AppError("Data de abertura inválida ou futura", 400);
-            }
-        }
+        const updatedCase = casosRepository.partialUpdateCaso(id, updates)
 
-        if ('dataDeFechamento' in updates) {
-            if (!moment(updates.dataDeFechamento, 'YYYY-MM-DD', true).isValid() || moment(updates.dataDeFechamento).isAfter(moment())) {
-                throw new AppError("Data de fechamento inválida ou futura", 400);
-            }
-        }
+        if (!updatedCase)
+            return res.status(404).json({ message: "Caso não encontrado." })
 
-        const casoOriginal = casos[index];
-        const casoAtualizado = { ...casoOriginal, ...updates, id };
-        casosRepository.update(index, casoAtualizado);
-
-        res.status(200).json(casoAtualizado);
+        res.status(200).json(updatedCase)
     } catch (error) {
-        next(error);
+        handlerError(res, error)
     }
 }
 

@@ -88,9 +88,28 @@ function remove(index) {
     casos.splice(index, 1);
 }
 
+function findById(id){
+    return casos.find(caso => caso.id === id)
+}
+
+function partialUpdateCaso(id, updates){
+    const caso = casos.find(caso => caso.id === id)
+
+    if(!caso) return null
+
+    Object.keys(updates).forEach(prop => {
+        if(updates[prop] !== undefined)
+            caso[prop] = updates[prop]
+    })
+
+    return caso
+}
+
 module.exports = {
     findAll,
     add,
     update,
-    remove
+    remove,
+    findById,
+    partialUpdateCaso
 }

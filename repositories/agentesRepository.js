@@ -66,17 +66,46 @@ function add(agente) {
     agentes.push(agente);
 }
 
-function update(index, agenteAtualizado) {
-    agentes[index] = agenteAtualizado;
+function update(id, { nome, dataDeIncorporacao, cargo }) {
+    const agente = agentes.find(agente => agente.id === id)
+    if (!agente) return null
+
+    agente.nome = nome
+    agente.dataDeIncorporacao = dataDeIncorporacao
+    agente.cargo = cargo
+
+    return agente
 }
 
 function remove(index) {
     agentes.splice(index, 1);
 }
 
+function findById(id) {
+    return agentes.find(agente => agente.id === id) 
+}
+
+function partialUpdateAgente(id, updates){
+    const agente = agentes.find(agente => agente.id === id)
+    
+    if(!agente)
+        return null
+
+    delete updates.id
+
+    Object.keys(updates).forEach(prop => {
+        if(updates[prop] !== undefined)
+            agente[prop] = updates[prop]
+    })
+
+    return agente
+}
+
 module.exports = {
     findAll,
     add,
     update,
-    remove
+    remove,
+    findById,
+    partialUpdateAgente
 }

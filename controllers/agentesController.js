@@ -139,7 +139,7 @@ async function partialUpdateAgente(req, res) {
         if (camposAtualizaveis.length === 0)
             return res.status(400).json({ message: 'Deve conter pelo menos um campo válido para atualização.' })
 
-        const patchedAgente = agentesRepository.patchById(id, updates)
+        const patchedAgente = agentesRepository.partialUpdateAgente(id, updates)
 
         if (!patchedAgente)
             return res.status(404).json({ message: 'Agente não encontrado.' })
