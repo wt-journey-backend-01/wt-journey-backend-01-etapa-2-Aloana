@@ -57,18 +57,10 @@ async function getAllAgentes(req, res, next) {
 
 async function getAgenteById(req, res, next) {
     try {
-        const { id } = req.params;
-
-        if (!uuidValidate(id)) {
-            throw new AppError("ID inválido", 400);
-        }
-
+        const id = req.params.id;
+        if (!uuidValidate(id)) throw new AppError("ID inválido", 400);
         const agente = agentesRepository.findAll().find(a => a.id === id);
-
-        if (!agente) {
-            throw new AppError("Agente não encontrado", 404);
-        }
-
+        if (!agente) throw new AppError("Agente não encontrado", 404);
         res.status(200).json(agente);
     } catch (error) {
         next(error);
@@ -139,31 +131,25 @@ async function partialUpdateAgente(req, res, next) {
         const updates = req.body;
 
         if (!uuidValidate(id)) throw new AppError("ID inválido", 400);
-
         if (!updates || typeof updates !== 'object' || Array.isArray(updates) || Object.keys(updates).length === 0) {
             throw new AppError("Payload vazio ou inválido", 400);
         }
-
         if ('id' in updates) throw new AppError("Não é permitido alterar o campo 'id'", 400);
 
         const camposValidos = ['nome', 'dataDeIncorporacao', 'cargo'];
-        const camposAtualizados = Object.keys(updates);
-        const camposAtualizaveis = camposAtualizados.filter(campo => camposValidos.includes(campo));
-
-        if (camposAtualizaveis.length === 0) {
+        const camposAtualizados = Object.keys(updates).filter(campo => camposValidos.includes(campo));
+        if (camposAtualizados.length === 0) {
             throw new AppError("Deve conter pelo menos um campo válido para atualização", 400);
         }
 
-        if ('nome' in updates) {
-            if (typeof updates.nome !== 'string' || !updates.nome.trim()) {
-                throw new AppError("Campo 'nome' inválido", 400);
-            }
+        if ('nome' in updates && (typeof updates.nome !== 'string' || !updates.nome.trim())) {
+            throw new AppError("Campo 'nome' inválido", 400);
         }
 
         if ('cargo' in updates) {
             const cargosValidos = ['delegado', 'investigador', 'escrivao', 'policial'];
             if (typeof updates.cargo !== 'string' || !cargosValidos.includes(updates.cargo.toLowerCase())) {
-                throw new AppError(`Campo 'cargo' inválido. Use: ${cargosValidos.join(', ')}`, 400);
+                throw new AppError(`Campo 'cargo' inválido. Use um dos seguintes valores: ${cargosValidos.join(', ')}`, 400);
             }
         }
 
@@ -176,13 +162,11 @@ async function partialUpdateAgente(req, res, next) {
 
         const agentes = agentesRepository.findAll();
         const index = agentes.findIndex(a => a.id === id);
-
         if (index === -1) {
             throw new AppError("Agente não encontrado", 404);
         }
 
         const agente = agentes[index];
-
         const updatedAgente = { ...agente, ...updates, id };
         agentesRepository.update(index, updatedAgente);
 
