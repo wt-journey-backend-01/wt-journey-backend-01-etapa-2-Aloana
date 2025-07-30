@@ -1,180 +1,185 @@
-const agentesRepository = require('../repositories/agentesRepository')
-const { v4: uuidv4 } = require('uuid')
-const handlerError = require('../utils/errorHandler')
+const { v4: uuidv4, validate: uuidValidate } = require('uuid');
+const moment = require('moment');
+const { AppError } = require('../utils/errorHandler');
+const agentesRepository = require('../repositories/agentesRepository');
 
-function getAllAgentes(req, res) {
+async function getAllAgentes(req, res, next) {
     try {
-        const { cargo, dataDeIncorporacao, orderBy, order } = req.query
-        let agentes = agentesRepository.findAll()
-        const { dataInicio, dataFim } = req.query
+        let agentes = agentesRepository.findAll();
+        const { nome, cargo, dataDeIncorporacao, dataInicial, dataFinal, sortBy, order } = req.query;
 
-        if (dataInicio || dataFim) {
-            agentes = agentes.filter(agente => {
-                const data = new Date(agente.dataDeIncorporacao)
-                const inicio = dataInicio ? new Date(dataInicio) : null
-                const fim = dataFim ? new Date(dataFim) : null
-
-                return (!inicio || data >= inicio) && (!fim || data <= fim)
-            })
+        if (nome) {
+            agentes = agentes.filter(a => a.nome.toLowerCase().includes(nome.toLowerCase()));
         }
-
         if (cargo) {
-            const cargosValidos = ['delegado', 'investigador', 'escrivao', 'policial']
-            if (!cargosValidos.includes(cargo.toLowerCase()))
-                return res.status(400).json({ message: `Cargo inválido. Use um dos seguintes valores: ${cargosValidos.join(', ')}` })
-
-            agentes = agentes.filter(agente =>
-                agente.cargo && agente.cargo.toLowerCase() === cargo.toLowerCase()
-            )
+            agentes = agentes.filter(a => a.cargo.toLowerCase() === cargo.toLowerCase());
         }
-
-        if (dataDeIncorporacao) {
-            if (!validarData(dataDeIncorporacao))
-                return res.status(400).json({ message: 'Data de incorporação inválida. Use o formato YYYY-MM-DD e não informe datas futuras.' })
-
-            agentes = agentes.filter(agente => agente.dataDeIncorporacao === dataDeIncorporacao)
+        if (dataDeIncorporacao && !dataInicial && !dataFinal) {
+            agentes = agentes.filter(a => a.dataDeIncorporacao === dataDeIncorporacao);
         }
-
-        if (order && order !== 'asc' && order !== 'desc') {
-            return res.status(400).json({ message: "Parâmetro 'order' inválido. Use 'asc' ou 'desc'." })
+        if (dataInicial || dataFinal) {
+            agentes = agentes.filter(a => {
+                const data = moment(a.dataDeIncorporacao, 'YYYY-MM-DD');
+                const inicio = dataInicial ? moment(dataInicial, 'YYYY-MM-DD') : null;
+                const fim = dataFinal ? moment(dataFinal, 'YYYY-MM-DD') : null;
+                let after = !inicio || data.isSameOrAfter(inicio, 'day');
+                let before = !fim || data.isSameOrBefore(fim, 'day');
+                return after && before;
+            });
         }
-
-        if (orderBy) {
-            const camposValidos = ['nome', 'dataDeIncorporacao', 'cargo']
-            if (!camposValidos.includes(orderBy)) {
-                return res.status(400).json({ message: `Campo para ordenação inválido. Use: ${camposValidos.join(', ')}` })
+        if (sortBy) {
+            const orderDirection = order === 'desc' ? -1 : 1;
+            if (sortBy === 'dataDeIncorporacao') {
+                agentes.sort((a, b) => {
+                    const dateA = moment(a.dataDeIncorporacao, 'YYYY-MM-DD');
+                    const dateB = moment(b.dataDeIncorporacao, 'YYYY-MM-DD');
+                    if (!dateA.isValid() || !dateB.isValid()) return 0;
+                    return dateA.isBefore(dateB) ? -1 * orderDirection : dateA.isAfter(dateB) ? 1 * orderDirection : 0;
+                });
+            } else {
+                agentes.sort((a, b) => {
+                    if (!a[sortBy] || !b[sortBy]) return 0;
+                    if (typeof a[sortBy] === 'string') {
+                        return a[sortBy].localeCompare(b[sortBy]) * orderDirection;
+                    }
+                    if (typeof a[sortBy] === 'number') {
+                        return (a[sortBy] - b[sortBy]) * orderDirection;
+                    }
+                    return 0;
+                });
             }
+        }
+        res.json(agentes);
+    } catch (error) {
+        next(error);
+    }
+}
 
-            agentes.sort((a, b) => {
-                const ordem = order === 'desc' ? -1 : 1
-                if (a[orderBy] < b[orderBy]) return -1 * ordem
-                if (a[orderBy] > b[orderBy]) return 1 * ordem
-                return 0
-            })
+async function getAgenteById(req, res, next) {
+    try {
+        const id = req.params.id;
+        if (!uuidValidate(id)) throw new AppError("ID inválido", 400);
+
+        const agente = agentesRepository.findAll().find(a => a.id === id);
+        if (!agente) throw new AppError("Agente não encontrado", 404);
+
+        res.json(agente);
+    } catch (error) {
+        next(error);
+    }
+}
+
+async function createAgente(req, res, next) {
+    try {
+        const newAgente = req.body;
+
+        if (!newAgente || typeof newAgente !== 'object' || Array.isArray(newAgente) || Object.keys(newAgente).length === 0)
+            throw new AppError("Payload vazio ou inválido", 400);
+
+        if ('id' in newAgente)
+            throw new AppError("Não é permitido fornecer o campo 'id' ao criar agente", 400);
+
+        if (!newAgente.nome || !newAgente.dataDeIncorporacao || !newAgente.cargo)
+            throw new AppError("Dados do agente incompletos", 400);
+
+        const dataIncorporacao = moment(newAgente.dataDeIncorporacao, 'YYYY-MM-DD', true);
+        if (!dataIncorporacao.isValid() || dataIncorporacao.isAfter(moment(), 'day'))
+            throw new AppError("Data de incorporação inválida ou futura", 400);
+
+        newAgente.id = uuidv4();
+        agentesRepository.add(newAgente);
+
+        res.status(201).json(newAgente);
+    } catch (error) {
+        next(error);
+    }
+}
+
+async function updateAgente(req, res, next) {
+    try {
+        const id = req.params.id;
+        const updatedAgente = req.body;
+
+        if (!uuidValidate(id)) throw new AppError("ID inválido", 400);
+
+        if (!updatedAgente || typeof updatedAgente !== 'object' || Array.isArray(updatedAgente) || Object.keys(updatedAgente).length === 0)
+            throw new AppError("Payload vazio ou inválido", 400);
+
+        if ('id' in updatedAgente)
+            throw new AppError("Não é permitido alterar o campo 'id'", 400);
+
+        if (!updatedAgente.nome || !updatedAgente.dataDeIncorporacao || !updatedAgente.cargo)
+            throw new AppError("Dados do agente incompletos", 400);
+
+        const dataIncorporacao = moment(updatedAgente.dataDeIncorporacao, 'YYYY-MM-DD', true);
+        if (!dataIncorporacao.isValid() || dataIncorporacao.isAfter(moment(), 'day'))
+            throw new AppError("Data de incorporação inválida ou futura", 400);
+
+        const index = agentesRepository.findAll().findIndex(a => a.id === id);
+        if (index === -1) throw new AppError("Agente não encontrado", 404);
+
+        updatedAgente.id = id;
+        agentesRepository.update(index, updatedAgente);
+
+        res.json(updatedAgente);
+    } catch (error) {
+        next(error);
+    }
+}
+
+async function partialUpdateAgente(req, res, next) {
+    try {
+        const id = req.params.id;
+        const updates = req.body;
+
+        if (!uuidValidate(id)) throw new AppError("ID inválido", 400);
+
+        if (!updates || typeof updates !== 'object' || Array.isArray(updates) || Object.keys(updates).length === 0)
+            throw new AppError("Payload vazio ou inválido", 400);
+
+        if ('id' in updates)
+            throw new AppError("Não é permitido alterar o campo 'id'", 400);
+
+        if (updates.dataDeIncorporacao) {
+            const dataIncorporacao = moment(updates.dataDeIncorporacao, 'YYYY-MM-DD', true);
+            if (!dataIncorporacao.isValid() || dataIncorporacao.isAfter(moment(), 'day'))
+                throw new AppError("Data de incorporação inválida ou futura", 400);
         }
 
-        res.status(200).json(agentes)
+        if (updates.nome !== undefined && !updates.nome)
+            throw new AppError("Nome inválido", 400);
+        if (updates.cargo !== undefined && !updates.cargo)
+            throw new AppError("Cargo inválido", 400);
+
+        const agentes = agentesRepository.findAll();
+        const index = agentes.findIndex(a => a.id === id);
+        if (index === -1) throw new AppError("Agente não encontrado", 404);
+
+        const agente = agentes[index];
+        const updatedAgente = { ...agente, ...updates, id };
+
+        agentesRepository.update(index, updatedAgente);
+
+        res.json(updatedAgente);
     } catch (error) {
-        handlerError(res, error)
+        next(error);
     }
 }
 
-function getAgenteById(req, res) {
+async function deleteAgente(req, res, next) {
     try {
-        const { id } = req.params
-        const agente = agentesRepository.getAgenteById(id)
+        const id = req.params.id;
 
-        if (!agente)
-            return res.status(404).json({ message: 'Agente não encontrado.' })
+        if (!uuidValidate(id)) throw new AppError("ID inválido", 400);
 
-        res.status(200).json(agente)
+        const index = agentesRepository.findAll().findIndex(a => a.id === id);
+        if (index === -1) throw new AppError("Agente não encontrado", 404);
+
+        agentesRepository.remove(index);
+        res.status(204).send();
     } catch (error) {
-        handlerError(res, error)
+        next(error);
     }
-}
-
-function createAgente(req, res) {
-    try {
-        const { nome, dataDeIncorporacao, cargo } = req.body
-        const id = uuidv4()
-
-        if (!validarData(dataDeIncorporacao))
-            return res.status(400).json({ message: 'Data de incorporação inválida. Use o formato YYYY-MM-DD e não informe datas futuras.' })
-
-        if (!nome || !dataDeIncorporacao || !cargo)
-            return res.status(400).json({ message: 'Todos os campos são obrigatórios.' })
-
-        const newAgente = { id, nome, dataDeIncorporacao, cargo }
-
-        agentesRepository.create(newAgente)
-        res.status(201).json(newAgente)
-    } catch (error) {
-        handlerError(res, error)
-    }
-}
-
-function updateAgente(req, res) {
-    try {
-        const { id } = req.params
-        const { nome, dataDeIncorporacao, cargo, id: idBody } = req.body
-
-        if(idBody && idBody !== id)
-            return res.status(400).json({message: "O campo 'id' não pode ser alterado."})
-
-        if (!validarData(dataDeIncorporacao))
-            return res.status(400).json({ message: 'Data de incorporação inválida. Use o formato YYYY-MM-DD e não informe datas futuras.' })
-
-        if (!nome || !dataDeIncorporacao || !cargo)
-            return res.status(400).json({ message: 'Todos os campos são obrigatórios.' })
-
-        const agenteAtualizado = agentesRepository.update(id, { nome, dataDeIncorporacao, cargo })
-
-        if (!agenteAtualizado)
-            return res.status(404).json({ message: 'Agente não encontrado.' })
-
-        res.status(200).json(agenteAtualizado)
-    } catch (error) {
-        handlerError(res, error)
-    }
-}
-
-function partialUpdateAgente(req, res) {
-    try {
-        const { id } = req.params
-        const updates = req.body
-        const camposValidos = ['nome', 'dataDeIncorporacao', 'cargo']
-
-        if('id' in updates)
-            return res.status(400).json({message: "O campo 'id' não pode ser alterado."})
-
-        const camposAtualizaveis = Object.keys(updates).filter(campo => camposValidos.includes(campo))
-
-        if (updates.dataDeIncorporacao && !validarData(updates.dataDeIncorporacao))
-            return res.status(400).json({ message: 'Data de incorporação inválida. Use o formato YYYY-MM-DD e não informe datas futuras.' })
-
-        if (camposAtualizaveis.length === 0)
-            return res.status(400).json({ message: 'Deve conter pelo menos um campo válido para atualização.' })
-
-        const patchedAgente = agentesRepository.partialUpdateAgente(id, updates)
-
-        if (!patchedAgente)
-            return res.status(404).json({ message: 'Agente não encontrado.' })
-
-        res.status(200).json(patchedAgente)
-    } catch (error) {
-        handlerError(res, error)
-    }
-}
-
-function deleteAgente(req, res) {
-    try {
-        const { id } = req.params
-        const agente = agentesRepository.getAgenteById(id)
-
-        if (!agente)
-            return res.status(404).json({ message: 'Agente não encontrado.' })
-
-        agentesRepository.deleteById(id)
-        res.status(204).send()
-    } catch (error) {
-        handlerError(res, error)
-    }
-}
-
-function validarData(dateString) {
-    const regex = /^\d{4}-\d{2}-\d{2}$/
-
-    if (!regex.test(dateString)) return false
-
-    const date = new Date(dateString)
-    const today = new Date()
-
-    if (isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== dateString)
-        return false
-
-    if (date > today) return false
-
-    return true
 }
 
 module.exports = {
@@ -184,4 +189,4 @@ module.exports = {
     updateAgente,
     partialUpdateAgente,
     deleteAgente
-}
+};
