@@ -61,11 +61,18 @@ async function getAllCasos(req, res, next) {
 
 async function getCasoById(req, res, next) {
     try {
-        const id = req.params.id;
-        if (!uuidValidate(id)) throw new AppError("ID inválido", 400);
-        const caso = casosRepository.findAll().find(c => c.id === id);
-        if (!caso) throw new AppError("Caso não encontrado", 404);
-        res.status(200).json(caso);
+        const { id } = req.params
+        const caso = casosRepository.findById(id)
+
+        if (!caso)
+            return res.status(404).json({ message: "Caso não encontrado." })
+
+        const agente = agentesRepository.findById(caso.agente_id)
+
+        res.status(200).json({
+            ...caso,
+            agente
+        })
     } catch (error) {
         next(error);
     }
@@ -138,7 +145,7 @@ async function updateCaso(req, res, next) {
     }
 }
 
-async function partialUpdateCaso(req, res) {
+async function partialUpdateCaso(req, res, next) {
     try {
         const { id } = req.params
         const updates = req.body
@@ -176,7 +183,7 @@ async function partialUpdateCaso(req, res) {
 
         res.status(200).json(updatedCase)
     } catch (error) {
-        handlerError(res, error)
+        next(error);
     }
 }
 

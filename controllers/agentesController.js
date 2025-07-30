@@ -57,11 +57,13 @@ async function getAllAgentes(req, res, next) {
 
 async function getAgenteById(req, res, next) {
     try {
-        const id = req.params.id;
-        if (!uuidValidate(id)) throw new AppError("ID inválido", 400);
-        const agente = agentesRepository.findAll().find(a => a.id === id);
-        if (!agente) throw new AppError("Agente não encontrado", 404);
-        res.status(200).json(agente);
+        const { id } = req.params
+        const agente = agentesRepository.findById(id)
+
+        if (!agente)
+            return res.status(404).json({ message: 'Agente não encontrado.' })
+
+        res.status(200).json(agente)
     } catch (error) {
         next(error);
     }
@@ -69,31 +71,25 @@ async function getAgenteById(req, res, next) {
 
 async function createAgente(req, res, next) {
     try {
-        const newAgente = req.body;
+        const { nome, dataDeIncorporacao, cargo } = req.body
+        const id = uuidv4()
 
-        if (!newAgente || typeof newAgente !== 'object' || Array.isArray(newAgente) || Object.keys(newAgente).length === 0)
-            throw new AppError("Payload vazio ou inválido", 400);
+        if (!validarData(dataDeIncorporacao))
+            return res.status(400).json({ message: 'Data de incorporação inválida. Use o formato YYYY-MM-DD e não informe datas futuras.' })
 
-        if ('id' in newAgente)
-            throw new AppError("Não é permitido fornecer o campo 'id' ao criar agente", 400);
+        if (!nome || !dataDeIncorporacao || !cargo)
+            return res.status(400).json({ message: 'Todos os campos são obrigatórios.' })
 
-        if (!newAgente.nome || !newAgente.dataDeIncorporacao || !newAgente.cargo)
-            throw new AppError("Dados do agente incompletos", 400);
+        const newAgente = { id, nome, dataDeIncorporacao, cargo }
 
-        const dataIncorporacao = moment(newAgente.dataDeIncorporacao, 'YYYY-MM-DD', true);
-        if (!dataIncorporacao.isValid() || dataIncorporacao.isAfter(moment(), 'day'))
-            throw new AppError("Data de incorporação inválida ou futura", 400);
-
-        newAgente.id = uuidv4();
-        agentesRepository.add(newAgente);
-
-        res.status(201).json(newAgente);
+        agentesRepository.create(newAgente)
+        res.status(201).json(newAgente)
     } catch (error) {
         next(error);
     }
 }
 
-async function updateAgente(req, res) {
+async function updateAgente(req, res, next) {
     try {
         const { id } = req.params
         const { nome, dataDeIncorporacao, cargo, id: idBody } = req.body
@@ -118,11 +114,11 @@ async function updateAgente(req, res) {
 
         res.status(200).json(agenteAtualizado)
     } catch (error) {
-        handlerError(res, error)
+        next(error);
     }
 }
 
-async function partialUpdateAgente(req, res) {
+async function partialUpdateAgente(req, res, next) {
     try {
         const { id } = req.params
         const updates = req.body
@@ -146,7 +142,7 @@ async function partialUpdateAgente(req, res) {
 
         res.status(200).json(patchedAgente)
     } catch (error) {
-        handlerError(res, error)
+        next(error);
     }
 }
 
